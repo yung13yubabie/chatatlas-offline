@@ -61,6 +61,9 @@ jobs:
       - run: node tools/package_test.mjs
       - run: node native/tests/windows_bridge_contract.cjs
       - run: node native/tests/app_flow_contract.cjs
+      - name: Synthetic bridge checks, without LINE
+        shell: powershell
+        run: ./native/tests/windows_bridge_test.ps1
       - run: node tools/fetch_zig.mjs
       - run: node tools/windows_native_tests.mjs
       - name: Build native Windows executable
@@ -71,6 +74,3 @@ jobs:
       - name: No developer tools runtime smoke test
         shell: powershell
         run: ./native/tests/no_install_runtime.ps1 -Exe native/out/ChatAtlas.exe
-      - name: Synthetic bridge checks, without LINE
-        shell: powershell
-        run: ./native/tests/windows_bridge_test.ps1

@@ -59,13 +59,33 @@ $start.Arguments='-NoLogo -NoProfile -NonInteractive -Command "'+$bootstrap+'"'
 $start.UseShellExecute=$false; $start.CreateNoWindow=$true
 $start.RedirectStandardInput=$true; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
 $child=New-Object System.Diagnostics.Process; $child.StartInfo=$start
+$started=$false
 try {
- if (!$child.Start()) { throw 'bootstrap_start_failed' }
+ $started=$child.Start()
+ if (!$started) { throw 'bootstrap_start_failed' }
+ $stderr=$child.StandardError.ReadToEndAsync()
  $payload=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($testWorker))
- $child.StandardInput.Write($payload+"`n"+'queued-request'+"`n")
- $child.StandardInput.Flush()
+ # Match native WriteFile exactly: inherited StreamWriter encoding/BOM is not
+ # part of the C++ protocol. Send both records together to exercise buffering.
+ $wire=[Text.Encoding]::UTF8.GetBytes($payload+"`n"+'queued-request'+"`n")
+ $child.StandardInput.BaseStream.Write($wire,0,$wire.Length)
+ $child.StandardInput.BaseStream.Flush()
  $line=$child.StandardOutput.ReadLineAsync()
- if (!$line.Wait(10000) -or $line.Result -cne 'received:queued-request') { throw 'bootstrap_roundtrip_failed' }
- if (!$child.WaitForExit(5000) -or $child.ExitCode -ne 0) { throw 'bootstrap_exit_failed' }
-} finally { if (!$child.HasExited) { $child.Kill() }; $child.Dispose() }
+ $completed=$line.Wait(10000)
+ $received=if($completed){$line.Result}else{$null}
+ if (!$completed -or $received -cne 'received:queued-request') {
+  # Only this synthetic worker is run here. No real UI, paths, or chat data.
+  if (!$child.HasExited) { $child.Kill(); [void]$child.WaitForExit(5000) }
+  $errorText=if($stderr.Wait(5000)){$stderr.Result}else{'stderr timeout'}
+  $exitCode=if($child.HasExited){$child.ExitCode}else{$null}
+  Write-Output (@{test='bootstrap';completed=$completed;stdout=$received;stderr=$errorText;exit_code=$exitCode;writer_codepage=$child.StandardInput.Encoding.CodePage;writer_preamble=[Convert]::ToBase64String($child.StandardInput.Encoding.GetPreamble())} | ConvertTo-Json -Compress)
+  throw 'bootstrap_roundtrip_failed'
+ }
+ if (!$child.WaitForExit(5000) -or $child.ExitCode -ne 0) {
+  if (!$child.HasExited) { $child.Kill(); [void]$child.WaitForExit(5000) }
+  $errorText=if($stderr.Wait(5000)){$stderr.Result}else{'stderr timeout'}
+  Write-Output (@{test='bootstrap_exit';stdout=$received;stderr=$errorText;exit_code=$child.ExitCode} | ConvertTo-Json -Compress)
+  throw 'bootstrap_exit_failed'
+ }
+} finally { if ($started -and !$child.HasExited) { $child.Kill() }; $child.Dispose() }
 Write-Output 'Native stdin bootstrap roundtrip passed without invoking LINE.'
