@@ -35,6 +35,12 @@
 
 合成 DPI 訊息測試不會更改作業系統縮放設定，不等於真實跨螢幕驗收。真實 Windows 10／11 build、4K 多螢幕、OneDrive、exFAT／FAT32 媒體、Firefox／Brave／Safari，以及完整 LINE 採集仍需另列已跑與未跑項目。未測不得標為通過。
 
+## 已取得的程式驗收證據
+
+程式 commit `6a15c4b02282573a699871a79cb3c2ebe29d7cf5` 的 Source 工作 `40659395672` 與 Native 工作 `40659516136` 已全數成功。Windows 實際執行包含 58 項合成 DPI／資料夾流程、127 項核心、32 項 ZIP 邊界、資料庫能力、8.3／subst 與其他磁碟包含關係；PowerShell 合成延遲回焦及實際封裝 EXE 的可攜／唯讀測試也通過。Chromium 閱讀回歸保留多次下載、更新、搬移、損毀分塊拒絕、多分塊／空檔與零外連正常流程。
+
+這些證據僅覆蓋上述程式與測試環境。文件與實際截圖整合後，最終發布仍需重新建置、核對資產與 exact-release-smoke，不替代真實 LINE 或所有使用環境驗證。
+
 ## 官方參考
 
 - [Windows 高 DPI](https://learn.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows)

@@ -1,6 +1,6 @@
 # 0.3.1-alpha.4 候選版狀態
 
-更新：2026-10-28。main 正在整合 alpha.4；是否已發布與最後驗收狀態，以對應 Release 頁為準。這是實驗預覽版，不是已完成的 LINE 備份工具。
+更新：2026-10-28。alpha.4 程式與文件已整合，最終發布產物仍須重新驗收；是否已發布與最後驗收狀態，以對應 Release 頁為準。這是實驗預覽版，不是已完成的 LINE 備份工具。
 
 ## 本輪範圍
 
@@ -18,6 +18,12 @@
 ## 本機環境限制
 
 本機暫存祖先有 Git 標記，收藏保護會拒絕在其中建立 Store；不移除或繞過保護。完整 Store／端到端封裝由正常隔離的 CI 暫存區驗證。本機可進行不依賴 Store 建立的來源契約、路徑、資料庫及交叉編譯。
+
+## 本版程式驗收
+
+程式 commit `6a15c4b02282573a699871a79cb3c2ebe29d7cf5` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659395672)與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659516136)共六個工作全數成功，包括 58 項同程序 Win32 DPI／資料夾流程測試、Windows 127 項核心測試、32 項 ZIP 邊界、資料庫與實際路徑別名、PowerShell 延遲回焦，以及無額外語言執行環境的原生閱讀器瀏覽器回歸。
+
+四張 alpha.4 實際截圖來自上述工作。加入文件與截圖後仍要對最終來源重新建置，不能把前述候選資產直接稱為最終來源包。
 
 ## 前版紀錄
 

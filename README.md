@@ -47,19 +47,19 @@
 
 ## 畫面預覽
 
-以下先保留 alpha.3 的實際 CI 執行畫面作歷史參考，不是 alpha.4 截圖。alpha.4 發布前需另取新版實際執行圖，不會替舊圖改標版本。閱讀資料全部是人工範例。
+以下是 alpha.4 的實際 CI 執行畫面，原生圖來自實際封裝的 EXE，不是設計稿，也不是替舊圖改標版本。閱讀資料全部是人工範例。
 
 ### Windows 原生程式
 
-![alpha.3 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha3.png)
+![alpha.4 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha4.png)
 
-原生啟動畫面尚未連接 LINE，不等於已完成真實採集。欄位中的 `C:\ChatAtlas-Example` 是避免暴露 CI 帳號路徑的人工輸入，不是預設保存位置；真正預設位置為 EXE 旁的 `ChatAtlasData/Collections`。
+原生啟動畫面尚未連接 LINE，不等於已完成真實採集。欄位中的 `C:\ChatAtlas-Example` 是避免暴露 CI 帳號路徑的人工輸入，不是預設保存位置；真正預設位置為 EXE 旁的 `ChatAtlasData/Collections`。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
 
-[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40639154474) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40639068958)
+[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659516136) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659395672)
 
 ### 離線關聯地圖
 
-![alpha.3 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha3.png)
+![alpha.4 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha4.png)
 
 - 點人物、關鍵字或附件，看相關內容與原文。
 - 切換「閱讀內容」或「圖片與檔案」，不用在地圖裡找每一則訊息。
@@ -71,11 +71,11 @@
 
 ### 閱讀內容
 
-![alpha.3 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha3.png)
+![alpha.4 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha4.png)
 
 ### 手機寬度
 
-![alpha.3 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha3.png)
+![alpha.4 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha4.png)
 
 手機寬度圖僅展示閱讀頁布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
 
@@ -95,7 +95,9 @@
 
 ## 驗證狀態
 
-alpha.4 正在整合與驗收；不能沿用上方 alpha.3 圖片來源的 CI 作為本版通過證據。最終精確 commit、Windows 執行結果、產物 SHA-256 與來源證明，需以 alpha.4 Release 實際紀錄為準。
+alpha.4 的程式 commit `6a15c4b02282573a699871a79cb3c2ebe29d7cf5` 已通過[來源與介面驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659395672)及[實際封裝 EXE 驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659516136)，共六個工作成功，亦為上方實際圖片的來源。包含 58 項同程序 Win32 合成 DPI／資料夾流程檢查、實際 Windows 路徑別名驗證與原生產生器的瀏覽器閱讀回歸。合成 DPI 不等於實體多螢幕測試。
+
+文件與四張截圖整合後，最終發布 commit 仍須重新建置與驗收。其 Windows 執行結果、產物 SHA-256 與來源證明，以 alpha.4 Release 的精確紀錄為準。
 
 本版應核對的項目包括：
 
