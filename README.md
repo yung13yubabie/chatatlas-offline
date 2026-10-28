@@ -2,16 +2,18 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**目前版本：0.3.1-alpha.2｜Windows x64 實驗預覽版**
+**0.3.1-alpha.3｜Windows x64 可攜預覽版**
 
-[下載 Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.2/ChatAtlas-0.3.1-alpha.2-Windows-x64-candidate.zip) · [本版 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.2)
+> 本版套件僅由通過驗收的 CI 產物發布；是否已可下載，請以本版 Release 頁的實際狀態為準。
+
+[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.3/ChatAtlas-0.3.1-alpha.3-Windows-x64-candidate.zip) · [alpha.3 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.3)
 
 > **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
 > 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
 
 ## 下載後怎麼開
 
-1. 下載上方 **Windows 原生版 ZIP**，先解壓整包。
+1. 發布完成後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的私人 NTFS 資料夾。
 2. 雙擊 `ChatAtlas.exe`。不需安裝 Python、Node.js，也不要求另裝 .NET。
 3. 想先試介面，點「查看人工範例」；或直接用瀏覽器開啟包內的 `人工範例/index.html`。
 4. 請保留 HTML 旁邊的資料夾，圖片、內容與另存檔案功能會用到它們。
@@ -20,21 +22,44 @@
 
 **EXE 尚未有 Authenticode 程式碼簽章。** 若系統阻擋，請勿為了使用預覽版停用 SmartScreen、防毒或其他系統保護。
 
-## 真實畫面
+## 可攜資料放在哪裡
 
-以下皆為本版 CI 實際擷取的畫面，不是設計稿；閱讀頁資料是人工範例，不包含真實聊天。
+alpha.3 採用 **EXE 旁的 `ChatAtlasData`**，將程式設定、匯入的連線設定，以及預設收藏和人工範例集中放在一起。
+
+```text
+聊藏資料夾/
+├─ ChatAtlas.exe
+└─ ChatAtlasData/
+   ├─ Collections/   預設收藏位置
+   └─ Example/       程式建立的人工範例
+```
+
+設定檔也放在 `ChatAtlasData` 內；上方只列出主要資料夾。
+
+- **搬移整包：** 先關閉程式，再一起搬走 EXE 與 `ChatAtlasData`。程式資料夾內的收藏使用相對路徑保存，搬家後會從新位置解析。
+- **外部收藏仍可使用：** 你明確選定的外部資料夾會保留原本位置，不會因搬動 EXE 而一起搬移。
+- **不偷偷換位置：** EXE 所在位置無法安全寫入時，程式會提示並停止，不回退到 AppData 或暫存資料夾。
+- **不動舊版資料：** 不會自動搬移或刪除舊 AppData。升級時請保留舊資料；複製與清理應由你確認後進行。
+
+請避免把程式放在唯讀、受保護或多人共用且權限寬鬆的位置。保存位置必須能驗證 Windows 私人 ACL；**不是所有隨身碟格式都適用，FAT32／exFAT 不能當成 NTFS 權限保護的替代品。**
+
+「可攜」指應用程式自己的資料位置，不代表電腦完全不留痕跡。Windows、瀏覽器、防毒及底層元件的暫存或診斷可能留下各自的紀錄，聊藏不會停用或清除它們。
+
+## 畫面預覽
+
+以下是 alpha.3 的實際 CI 執行畫面，不是設計稿，也不是以 alpha.2 圖片改標版本。閱讀資料全部是人工範例。
 
 ### Windows 原生程式
 
-![聊藏 Windows 原生程式啟動畫面，LINE 尚未連接，使用中性範例資料夾](docs/screenshots/windows-native-alpha2.png)
+![alpha.3 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha3.png)
 
-這張圖顯示原生程式啟動後的介面，**尚未連接 LINE**。它不是成功採集聊天的展示。
+原生啟動畫面尚未連接 LINE，不等於已完成真實採集。欄位中的 `C:\ChatAtlas-Example` 是避免暴露 CI 帳號路徑的人工輸入，不是預設保存位置；真正預設位置為 EXE 旁的 `ChatAtlasData/Collections`。
 
-[Windows 實際截圖紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40632087623)使用已發布、核對 SHA-256 的 alpha.2 EXE；畫面中的資料夾是中性範例輸入，不代表已存在或已完成封存。HTML 圖片取自本版[離線介面驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40628780990)。
+[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40639154474) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40639068958)
 
 ### 離線關聯地圖
 
-![聊藏離線關聯地圖，左側選聊天室，中間探索人物與主題，右側查看相關原文](docs/screenshots/offline-map-alpha2.png)
+![alpha.3 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha3.png)
 
 - 點人物、關鍵字或附件，看相關內容與原文。
 - 切換「閱讀內容」或「圖片與檔案」，不用在地圖裡找每一則訊息。
@@ -46,61 +71,90 @@
 
 ### 閱讀內容
 
-![聊藏閱讀畫面，以原文、發言者、時間與附件呈現人工範例](docs/screenshots/offline-reading-alpha2.png)
+![alpha.3 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha3.png)
 
 ### 手機寬度
 
-![聊藏離線 HTML 的手機寬度畫面，地圖與原文面板上下排列](docs/screenshots/offline-mobile-alpha2.png)
+![alpha.3 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha3.png)
 
-此圖驗證閱讀頁的窄螢幕布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
+手機寬度圖僅展示閱讀頁布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
 
 </details>
 
-## alpha.2 更新了什麼
+## alpha.3 更新了什麼
 
-- **原生操作更清楚：** 將連接、收藏管理與狀態資訊分開；補上視窗生命週期處理，以及既有收藏資料夾、資料庫與副本操作的檢查。
-- **閱讀頁更好用：** 調整字級、對比與層級；加入鍵盤操作、篩選摘要、選取重設與縮放狀態。保留節點位置，避免每次篩選都重新跳動；碰撞標籤會調整位置或隱藏低優先項目，完整名稱仍可查看。
-- **封存權限補強：** 新建 Windows 收藏使用私人 ACL；既有收藏及內容若權限過寬，會拒絕繼續，而不是悄悄修改原資料夾權限。新增檔案控制代碼與實際路徑核對，修正 Windows 分隔符號相容問題。
-- **LINE 橋接補強：** 核對程序身分、另存對話框與最後寫入位置；內嵌 PowerShell 改由 stdin 傳送，不把整份腳本放在命令列。沒有停用系統記錄。
-- **發布流程更可核對：** 全部 CI、原生建置與封裝不執行 Python；Actions 固定完整 commit SHA。發布四個檔案使用 CI 原始產物，附可驗證的 GitHub 建置來源證明。
+- **設定與收藏一起帶走：** 新增 EXE 旁的 `ChatAtlasData`，支援程式資料夾內相對路徑；唯讀位置會明確拒絕，不暗中改用其他位置。
+- **本機檔案操作補強：** 增加既有目錄可繼承權限、鎖檔與讀取控制代碼核對；拒絕不適合的 Windows 裝置名稱及尾隨點、空白。
+- **中斷與錯誤處理補強：** 調整連線完成後的 UI 交接、SQLite 資源錯誤處理及取消釋放；針對已追蹤的另存覆寫確認窗，只做嚴格核對後的取消，不接受覆寫。
+- **保留 ZIP64：** 既有大型封存與大量項目的 ZIP64 支援沒有移除；補上 64 位元數值、來源檔案增長與寫入前檢查，**沒有新增任意的 4 GiB 封存上限**。磁碟格式、剩餘空間及實際工作負載仍會影響能否完成。
+- **下載提示更明確：** 補上瀏覽器能力差異、取消與大小溢出的檢查。閱讀頁和原生收藏是不同操作路徑，不把瀏覽器限制混寫成 ZIP 格式上限。
 
-## 本版實際驗證到哪裡
-
-發布執行檔來自 commit [`e3e332a6792cab1b72882ce4ffe5d011d9aaeb72`](https://github.com/yung13yubabie/chatatlas-offline/commit/e3e332a6792cab1b72882ce4ffe5d011d9aaeb72)。
-
-- [來源與介面檢查](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40628780990)：原生核心、離線 UI 與瀏覽器測試通過。
-- [發布建置與 Windows 驗證](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40628942352)：包含 123 項原生核心檢查、ACL、UTF-8 橋接，以及**實際封裝 EXE** 的 GUI 啟動、必要控制項與正常關閉測試。
-- 離線 UI 測試在涵蓋的地圖、閱讀、檔案、預覽、篩選與另存流程中觀察到 **0 次外部網路請求**；另以獨立測試確認 CSP 拒絕外部 script、圖片、fetch、CSS 與字型。
-- [四個發布檔案的建置來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/60669107)已驗證儲存庫、workflow、來源 commit 與檔案雜湊。它不是程式碼簽章，也不是安全認證。
-
-這些是在受管理的 CI 環境執行，**不等於全新 Windows 安裝環境、完整 GUI 操作流程、真實 LINE 採集或所有電腦相容性已通過驗收**。PE 匯入表、檔案雜湊及離線閱讀頁測試，也不能證明整個程式在任何情況下「100% 離線」或「沒有暗門」。
+原有的地圖、閱讀與檔案分頁、鍵盤操作、標籤避讓及減少動態支援繼續保留。全部 CI、原生建置與發布管線不執行 Python。
 
 <details>
-<summary>Windows ZIP 的 SHA-256 與來源核對</summary>
+<summary>第二輪報告核對：哪些是真正修正，哪些原本就有</summary>
 
-檔案：`ChatAtlas-0.3.1-alpha.2-Windows-x64-candidate.zip`
+這次先比對 alpha.2 實際原始碼，而不是直接照外部報告的名稱或風險等級修改：
 
-```text
-359ace24635feb7de054898ee0a21d20351e2a730c79f9581c9bbe90772ec8e7
-```
+- 原本沒有報告所述的 `configDir` 預建目錄程式；實際已直接使用 `privateDir`。
+- 原本已拒絕非標準 allow／deny 的 ACE；不是忽略 callback ACE。
+- 原本 stderr 導向 NUL，stdout 有 16 MiB 上限、35 秒逾時及可取消輪詢。
+- 原本已支援 ZIP64，並非 ZIP32 計數截斷；本輪保留 ZIP64 並補邊界測試。
 
-其餘檔案請對照 Release 的 `SHA256SUMS.txt`。使用 GitHub CLI 的開發者亦可執行：
+真實補強項目、測試範圍及殘餘限制見 [alpha.3 修正紀錄](docs/ALPHA3_REVIEW.md)。這不是紅隊認證，也不代表沒有漏洞。
+
+</details>
+
+## 驗證狀態
+
+alpha.3 已完成一輪[來源與介面驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40639068958)及[實際封裝 EXE 驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40639154474)，包含搬移重開、唯讀拒絕、舊 AppData 不變及 8.3／subst 路徑。這些也是上方實際圖片的來源。
+
+正式交付的精確 commit、最後 CI、SHA-256 與來源證明，以本版 Release 所列紀錄為準；文件與截圖納入後仍需重新驗證發布產物。
+
+本版應核對的項目包括：
+
+- Windows 私人 ACL、讀取／鎖檔、原生核心與可攜 GUI；對實際封裝 EXE 驗證啟動與關閉。
+- ZIP64 65,536 項、長名稱、4 GiB／uint64 算術邊界及來源增長拒絕。
+- 人工 SQLite 與下載器回歸，以及離線 UI 的正常操作與 CSP 外部資源拒絕。
+- 發布四個檔案的原始 CI 位元組、`SHA256SUMS.txt` 與 GitHub 建置來源證明。
+
+最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.3) 的精確來源與驗證紀錄為準；不沿用 alpha.2 的 CI 或雜湊。
+
+<details>
+<summary>下載後如何核對來源</summary>
+
+請使用 **alpha.3 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
+
+發布完成且有可驗證的來源證明後，使用 GitHub CLI 的開發者可執行：
 
 ```sh
-gh attestation verify ChatAtlas-0.3.1-alpha.2-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
+gh attestation verify ChatAtlas-0.3.1-alpha.3-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
 ```
 
-SHA-256 用於確認檔案是否相同，不代表防毒認證、安全認證或作者簽章。
+建置來源證明需核對儲存庫、workflow、來源 commit 及檔案雜湊。它不是 Authenticode 簽章、防毒認證或安全認證。
 
 </details>
 
 ## 使用前請知道
 
-- **真實 LINE 自動採集、已驗證的版面設定與多 GB 附件，仍未完成實機驗收。** 請保留原始資料與第二份副本，不要用預覽版處理唯一一份重要聊天。
-- 收藏資料庫及附件**沒有加密或密碼保護**。ACL 是本機存取控制，不是加密，也不能防止管理員或同一帳號下所有程式讀取資料。
-- Authenticode 未簽章，CFG 尚未啟用；路徑與 UI 操作競態只做部分防護，不能宣稱全部消除。本版不是完整的獨立安全稽核。
-- 關聯地圖是找回內容的工具。相同暱稱、共同關鍵字或圖上的線，不應直接當成人物身分或真實關係的判定。
-- 不要把聊天、媒體、私人設定、資料庫、診斷日誌或憑證放進 Repo、issue 或 Release。分享收藏前，先確認對話與附件的授權及隱私。
+- **真實 LINE 自動採集、已驗證的版面設定及多 GB 真實工作負載，仍需另外實機驗收。** 請保留原始資料與第二份副本，不要用預覽版處理唯一一份重要聊天。
+- 收藏資料庫、附件及可攜設定**沒有加密或密碼保護**。私人 ACL 不是加密，也不能防止管理員或同一帳號下所有程式讀取資料。
+- Authenticode 未簽章、CFG 未啟用；SQLite VFS、祖先目錄替換、rename 及同帳號程序競態沒有宣稱全部消除。
+- 特殊或分拆權限的資料夾可能被保守拒絕。短路徑或 `subst` 不受測試環境支援時，必須記為跳過，不能當成已執行通過。
+- 瀏覽器的 `file://` 能力會不同。無法使用必要能力時會提示或停止；不繞過安全檢查，也不藉由安裝套件補足功能。
+- 關聯地圖協助找回內容，不直接判定人物身分或真實關係。
+- 不要把 `ChatAtlasData`、真實聊天、媒體、私人連線設定、資料庫、診斷日誌或憑證放進 Repo、issue 或 Release。分享收藏前，先確認對話與附件的授權及隱私。
+
+受管理 CI 的測試不等於全新 Windows 安裝環境、所有電腦相容性或完整 GUI／LINE 操作已通過。檔案雜湊、PE 匯入表與離線 UI 測試，都不能證明整個程式在任何情況下「100% 安全」、「100% 離線」或「沒有暗門」。
+
+<details>
+<summary>大檔與瀏覽器另存的界線</summary>
+
+原生完整封存保留 ZIP64；並未因本輪修改增加 4 GiB 的任意上限。實際可用容量仍受檔案系統、磁碟空間與作業系統影響，不能因此宣稱多 GB 真實工作負載已驗收。
+
+瀏覽器另存有不同能力路徑；Blob 回退路徑保留 64 MiB 限制，並非 ZIP 封存上限。串流下載驗證的是分塊 SHA-256 與總大小，不宣稱另行計算了完整檔案 SHA-256。遇到能力或大小限制時，請依提示停止或改用合適的既有本機操作，不要停用保護。
+
+</details>
 
 ## 給開發者
 
@@ -122,11 +176,11 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-瀏覽器測試使用固定版本 Playwright，詳見 workflow 與 [原生開發說明](native/README.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.3 修正紀錄](docs/ALPHA3_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
 
-打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release，不提交到 Git；Repo 中的 PNG 僅為已確認使用人工資料的文件截圖。
+打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
-alpha.2 的 Release、tag 與執行檔維持上述 `e3e332a…` 來源不變。之後 `main` 上的 README／截圖更新是文件更新，不會重新標記該版本或改動已發布檔案。
+alpha.2 已發布的 Release、tag 與檔案保持不變。alpha.3 的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
 
 </details>
 

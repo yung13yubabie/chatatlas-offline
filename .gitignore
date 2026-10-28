@@ -42,3 +42,6 @@ native/out/
 # Required upstream source directory, not generated runtime output.
 !native/vendor/nlohmann/detail/output/
 !native/vendor/nlohmann/detail/output/*.hpp
+
+# Portable user settings and collections must never be committed.
+**/ChatAtlasData/

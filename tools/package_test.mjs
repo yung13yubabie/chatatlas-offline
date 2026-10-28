@@ -33,4 +33,7 @@ assert.throws(()=>checkJobEnvContexts('    env:\n      QA: ${{ runner.temp }}\n'
 for(const name of fs.readdirSync(ROOT+'/docs/screenshots').filter(n=>n.endsWith('.png'))){const key='docs/screenshots/'+name,bytes=fs.readFileSync(ROOT+'/'+key);assert(!review(new Map([[key,bytes]]),false).some(([p])=>p===key));const corrupt=Buffer.from(bytes);corrupt[corrupt.length-1]^=1;assert(review(new Map([[key,corrupt]]),false).some(([p,r])=>p===key&&r==='unreviewed documentation image'));}
 assert(review(new Map([['docs/screenshots/unreviewed.png',Buffer.from([137,80,78,71,13,10,26,10])]]),false).some(([p])=>p==='docs/screenshots/unreviewed.png'));
 
+
+
+assert(review(new Map([['docs/ChatAtlasData/index.html',Buffer.from('artificial fixture')]]),false).some(([,r])=>r==='private or generated directory'));
 console.log('Native package regression checks passed, including >1 MiB toolchain listing buffer.');

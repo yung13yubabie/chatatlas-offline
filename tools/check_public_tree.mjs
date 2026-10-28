@@ -9,7 +9,7 @@ const suffix=new Set('.py .ps1 .cmd .js .cjs .css .html .md .toml .yml .yaml .cp
 const names=new Set(['LICENSE','VERSION','.gitignore','.gitattributes','Makefile']);
 const json=new Set(['package.json','package-lock.json']);
 const tops=new Set(['.github','docs','licenses','native','src','tests','tools']);
-const privateParts=new Set('private archives captures profiles.local output dist build out node_modules .venv .venv-build .toolchains'.split(' '));
+const privateParts=new Set('private archives captures profiles.local output dist build out node_modules .venv .venv-build .toolchains ChatAtlasData Collections Example'.split(' '));
 const patterns=[/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,/gh[pousr]_[A-Za-z0-9]{30,}/i,/github_pat_[A-Za-z0-9_]{30,}/i,/sk-[A-Za-z0-9_-]{24,}/i,/[A-Z0-9._%+-]+@(?!example\.(?:com|invalid)\b|users\.noreply\.github\.com\b)[A-Z0-9.-]+\.[A-Z]{2,}/i,/[A-Z]:\\Users\\[^\\\s]+\\/i,/\/(?:Users|home|workspace)\/[A-Za-z0-9_.-]+\//i,/AKIA[0-9A-Z]{16}/i,/xox[baprs]-[A-Za-z0-9-]{20,}/i,/AIza[0-9A-Za-z_-]{35}/i];
 export const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const copyrightHashes={
@@ -26,9 +26,13 @@ const copyrightHashes={
 // Reviewed artificial-data screenshots only; arbitrary binary documentation is rejected.
 const documentationImages={
   "docs/screenshots/offline-map-alpha2.png": "2919f0919eb48c0d7e36fbd5a90c6c90f9fd17268287b1ed5cf5c01448769710",
+  "docs/screenshots/offline-map-alpha3.png": "3c98dfe51a17d7f32ee381183ebb01760ff81773340769596580518a8f93bd26",
   "docs/screenshots/offline-mobile-alpha2.png": "29908ce9faa25e432e4395ebb28b89071e4283495e30832dc71b0a52937317fc",
+  "docs/screenshots/offline-mobile-alpha3.png": "21784e31851a1a4cb70955569d2089d1920055f242a170367105d6c79455b98f",
   "docs/screenshots/offline-reading-alpha2.png": "c1e0299c9468c537c28c8929f565df09c2b7ee2b003fbc1bf3887b02caaf9ae0",
-  "docs/screenshots/windows-native-alpha2.png": "c470da9caaedc8efa3b4339de9bd83ad55d8761d71e0a50a0bffe29c5cfba181"
+  "docs/screenshots/offline-reading-alpha3.png": "0cc96610ea1ed329d2681605cdd857ca64c417435e37004741a550ee984429fd",
+  "docs/screenshots/windows-native-alpha2.png": "c470da9caaedc8efa3b4339de9bd83ad55d8761d71e0a50a0bffe29c5cfba181",
+  "docs/screenshots/windows-native-alpha3.png": "3310830183314ff8e90ae4999362e0bb6ed0591a2049651023d999b4bd4bcb72"
 };
 export function stagedFiles(){
  const result=new Map();
