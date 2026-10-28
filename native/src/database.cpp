@@ -41,9 +41,20 @@ try {
 };static SqlApi&sql(){static SqlApi api;return api;}
 Db::Db(const fs::path&p,bool create){noLinks(p);auto&s=sql();int rc=s.open(utf8(p).c_str(),&db,(create?2|4:1)|0x8000,nullptr);if(rc){if(db)s.close(db);db=nullptr;throw Error("收藏資料庫無法開啟，請保留原資料夾後再試。");}try {
  if(s.busy(db,3000))throw Error("資料庫等候設定失敗。");
+ // Apply connection protections before even inspecting an existing schema.
+ // The constructor is shared by normal, read-only and backup connections.
+ execute("PRAGMA trusted_schema=OFF");
+ trustedSchemaOff=databasePragmaCapability(rows("PRAGMA trusted_schema"),"trusted_schema",0);
+ execute("PRAGMA cell_size_check=ON");
+ cellSizeCheck=databasePragmaCapability(rows("PRAGMA cell_size_check"),"cell_size_check",1);
  }catch(...){s.close(db);db=nullptr;throw;}
 }
 Db::~Db(){if(db)sql().close(db);}
+J Db::protectionStatus()const{return {{"trusted_schema_off",trustedSchemaOff},{"cell_size_check",cellSizeCheck}};}
+std::string Db::protectionNotice()const{
+ if(trustedSchemaOff&&cellSizeCheck)return {};
+ return "提醒：這台電腦的資料庫元件不支援部分額外保護，請只開啟可信來源的收藏，並更新 Windows。";
+}
 J Db::rows(const std::string&query,const J&givenArgs){
  const int queryLength=databaseIntLength(query.size());
  J args=givenArgs.is_array()?givenArgs:J::array({givenArgs});

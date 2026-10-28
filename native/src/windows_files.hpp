@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <sddl.h>
 #include <aclapi.h>
+#include <algorithm>
 namespace atlas {
 // An explicit token SID, not the OWNER RIGHTS placeholder, identifies this user.
 class PrivateSecurity {
@@ -26,6 +27,26 @@ class PrivateSecurity {
 inline std::wstring finalHandlePath(HANDLE h){
  DWORD n=GetFinalPathNameByHandleW(h,nullptr,0,FILE_NAME_NORMALIZED);if(!n)throw Error("無法驗證保存位置。");
  std::wstring actual(n,L'\0');DWORD used=GetFinalPathNameByHandleW(h,actual.data(),n,FILE_NAME_NORMALIZED);if(!used||used>=n)throw Error("無法驗證保存位置。");actual.resize(used);return actual;
+}
+// GetFinalPathNameByHandle returns extended DOS/UNC paths. libc++ treats
+// the "?" prefix as a network root, so parent_path() alone can walk above a
+// volume/share into the device namespace. Preserve the prefix for long paths,
+// but stop explicitly at the actual DOS drive or UNC share root.
+inline std::optional<std::pair<fs::path,fs::path>> finalDirectoryParent(std::wstring value){
+ size_t rootEnd=0;
+ if(value.rfind(L"\\\\?\\UNC\\",0)==0){
+  auto serverEnd=value.find(L'\\',8);
+  if(serverEnd==std::wstring::npos||serverEnd==8)throw Error("無法確認網路資料夾位置。");
+  auto shareEnd=value.find(L'\\',serverEnd+1);
+  if(serverEnd+1==value.size()||shareEnd==serverEnd+1)throw Error("無法確認網路資料夾位置。");
+  rootEnd=shareEnd==std::wstring::npos?value.size():shareEnd+1;
+ }else if(value.size()>=7&&value.rfind(L"\\\\?\\",0)==0&&((value[4]>=L'A'&&value[4]<=L'Z')||(value[4]>=L'a'&&value[4]<=L'z'))&&value[5]==L':'&&value[6]==L'\\')rootEnd=7;
+ else throw Error("保存位置格式無法驗證。");
+ while(value.size()>rootEnd&&value.back()==L'\\')value.pop_back();
+ if(value.size()<=rootEnd)return std::nullopt;
+ auto separator=value.find_last_of(L'\\');
+ if(separator==std::wstring::npos||separator+1==value.size())throw Error("保存位置格式無法驗證。");
+ return std::make_pair(fs::path(value.substr(0,std::max(rootEnd,separator))),fs::path(value.substr(separator+1)));
 }
 // Snapshot the resolved parent BEFORE opening/creating the target. This handles
 // subst drives and short directory aliases without re-resolving after the open.

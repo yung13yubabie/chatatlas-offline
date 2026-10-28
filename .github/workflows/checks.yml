@@ -18,6 +18,7 @@ jobs:
       - run: node tools/download_contract_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs
       - run: node native/tests/app_flow_contract.cjs
+      - run: node native/tests/ui_dpi_contract.cjs
       - run: make -C native test build/atlas-cli
       - run: node tools/graph_model_test.cjs
   browser:
@@ -29,9 +30,11 @@ jobs:
           persist-credentials: false
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps chromium
-      - run: make -C native build/atlas-cli
+      - run: make -C native build/atlas-cli build/reader-fixture
       - run: native/build/atlas-cli demo "$RUNNER_TEMP/chatatlas-synthetic"
       - run: native/build/atlas-cli check "$RUNNER_TEMP/chatatlas-synthetic"
+      - name: Native reader regression without a language runtime dependency
+        run: node tools/reader_test.cjs
       - run: node tools/graph_browser_test.cjs
         env:
           ATLAS_EXAMPLE: ${{ runner.temp }}/chatatlas-synthetic
@@ -65,6 +68,7 @@ jobs:
       - run: node tools/download_contract_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs
       - run: node native/tests/app_flow_contract.cjs
+      - run: node native/tests/ui_dpi_contract.cjs
       - name: Synthetic bridge checks, without LINE
         shell: powershell
         run: ./native/tests/windows_bridge_test.ps1

@@ -20,3 +20,12 @@ execFileSync(path.join(ROOT,'native/build/zip-bounds-test.exe'),[],{stdio:'inher
 run(['src/database.cpp','src/platform.cpp','tests/database_contract_test.cpp','-ladvapi32','-o','build/database-contract-test.exe']);
 const databaseFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-db-contract-'));
 try{execFileSync(path.join(ROOT,'native/build/database-contract-test.exe'),[databaseFixture],{stdio:'inherit'});}finally{fs.rmSync(databaseFixture,{recursive:true,force:true});}
+
+run(['src/platform.cpp','tests/path_identity_test.cpp','-ladvapi32','-o','build/path-identity-test.exe']);
+const pathFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-path-identity-'));
+try{execFileSync(path.join(ROOT,'native/build/path-identity-test.exe'),[pathFixture],{stdio:'inherit'});}finally{fs.rmSync(pathFixture,{recursive:true,force:true});}
+
+// Real controls, same-process synthetic DPI messages; no OS display setting change.
+run([...sources,'src/windows_source.cpp','tests/windows_ui_test.cpp','-lcomctl32','-lole32','-lshell32','-luuid','-lcomdlg32','-lgdi32','-ladvapi32','-o','build/windows-ui-test.exe']);
+const uiFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-ui-dpi-'));
+try{const exe=path.join(uiFixture,'windows-ui-test.exe');fs.copyFileSync(path.join(ROOT,'native/build/windows-ui-test.exe'),exe);execFileSync(exe,[],{cwd:uiFixture,stdio:'inherit'});}finally{fs.rmSync(uiFixture,{recursive:true,force:true});}

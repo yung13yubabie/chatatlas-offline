@@ -45,3 +45,6 @@ native/out/
 
 # Portable user settings and collections must never be committed.
 **/ChatAtlasData/
+
+# Local compiler scratch caches, never public build inputs.
+.zig-cache-global/

@@ -25,6 +25,7 @@ jobs:
       - run: node tools/graph_model_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs
       - run: node native/tests/app_flow_contract.cjs
+      - run: node native/tests/ui_dpi_contract.cjs
       - run: node tools/fetch_zig.mjs
       - run: node native/build.mjs
         env:
@@ -63,6 +64,7 @@ jobs:
         run: ./native/tests/windows_bridge_test.ps1
       - run: node tools/fetch_zig.mjs
       - run: node native/tests/app_flow_contract.cjs
+      - run: node native/tests/ui_dpi_contract.cjs
       - run: node tools/windows_native_tests.mjs
       - name: Build native Windows executable
         run: node native/build.mjs

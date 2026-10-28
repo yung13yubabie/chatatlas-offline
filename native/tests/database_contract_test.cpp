@@ -13,8 +13,24 @@ int main(int argc,char**argv){
  assert(databaseIntLength(maximum)==std::numeric_limits<int>::max());
  rejected([&]{databaseIntLength(maximum+1);});
  rejected([&]{databaseIntLength(std::numeric_limits<size_t>::max());});
+ // Simulate old SQLite returning no rows for unknown PRAGMAs.
+ assert(!databasePragmaCapability(J::array(),"trusted_schema",0));
+ assert(databasePragmaCapability(J::array({{{"trusted_schema",0}}}),"trusted_schema",0));
+ rejected([&]{databasePragmaCapability(J::array({{{"trusted_schema",1}}}),"trusted_schema",0);});
+ rejected([&]{databasePragmaCapability(J::array({{{"trusted_schema",false}}}),"trusted_schema",0);});
+ rejected([&]{databasePragmaCapability(J::array({{{"unexpected",0}}}),"trusted_schema",0);});
+ rejected([&]{databasePragmaCapability(J::array({{{"trusted_schema",0}},{{"trusted_schema",0}}}),"trusted_schema",0);});
+ rejected([&]{databasePragmaCapability(J::object(),"trusted_schema",0);});
  {
   Db db(path);
+  const auto protections=db.protectionStatus();
+  assert(protections["trusted_schema_off"].is_boolean());
+  assert(protections["cell_size_check"].is_boolean());
+  assert(protections["trusted_schema_off"]==!db.rows("PRAGMA trusted_schema").empty());
+  assert(protections["cell_size_check"]==!db.rows("PRAGMA cell_size_check").empty());
+  if(protections["trusted_schema_off"]==true)assert(db.rows("PRAGMA trusted_schema")[0]["trusted_schema"]==0);
+  if(protections["cell_size_check"]==true)assert(db.rows("PRAGMA cell_size_check")[0]["cell_size_check"]==1);
+  assert(db.protectionNotice().empty()==(protections["trusted_schema_off"]==true&&protections["cell_size_check"]==true));
   assert(db.rows(" -- empty SQL\n").empty());
   rejected([&]{db.rows("",J::array({1}));});
   db.execute("CREATE TABLE fixture (id INTEGER PRIMARY KEY, value TEXT)");
@@ -29,8 +45,11 @@ int main(int argc,char**argv){
   assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
   try{db.transaction([&]{db.execute("INSERT INTO fixture(value) VALUES('rollback')");throw Error("test");});}catch(const Error&){}
   assert(db.rows("SELECT count(*) AS n FROM fixture")[0]["n"]==1);
-
+  const auto backup=root/"synthetic-db-backup.sqlite3";
+  db.backup(backup);
+  {Db copy(backup,false);assert(copy.protectionStatus()==protections);assert(copy.rows("SELECT count(*) AS n FROM fixture")[0]["n"]==1);}
+  fs::remove(backup);
  }
- {Db db(path,false);assert(db.rows("SELECT count(*) AS n FROM fixture")[0]["n"]==1);}
+ {Db db(path,false);assert(db.rows("SELECT count(*) AS n FROM fixture")[0]["n"]==1);if(db.protectionStatus()["trusted_schema_off"]==true)assert(db.rows("PRAGMA trusted_schema")[0]["trusted_schema"]==0);if(db.protectionStatus()["cell_size_check"]==true)assert(db.rows("PRAGMA cell_size_check")[0]["cell_size_check"]==1);}
  fs::remove(path);std::cout<<"database contract tests passed\n";
 }

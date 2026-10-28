@@ -9,8 +9,8 @@ for(const[n,b]of entries)assert.deepEqual(read.get(n),b);assert.deepEqual(zip,wr
 for(const name of ['../x','/x','a/../b','a\\b','a//b'])assert.throws(()=>writeZip(new Map([[name,Buffer.from('x')]])));
 const broken=Buffer.from(zip);broken[35]^=1;assert.throws(()=>readZip(broken));
 assert(review(new Map([['private/raw.txt',Buffer.from('synthetic')]]),false).some(([,r])=>r==='directory not approved'));
-for(const file of ['tools/package_release.mjs','tools/fetch_zig.mjs','native/build.mjs']){const text=fs.readFileSync(ROOT+'/'+file,'utf8');assert(!/(?:execFileSync|spawnSync|run)\s*\(\s*['"]python/.test(text));}
-for(const wf of ['checks.yml','windows-build.yml','capture-release-ui.yml']){const workflow=fs.readFileSync(ROOT+'/.github/workflows/'+wf,'utf8');assert(!/setup-python|\bpython(?:3)?\b|reader_test\.cjs/.test(workflow));}
+for(const file of ['tools/package_release.mjs','tools/fetch_zig.mjs','native/build.mjs','tools/reader_test.cjs']){const text=fs.readFileSync(ROOT+'/'+file,'utf8');assert(!/(?:execFileSync|spawnSync|run)\s*\(\s*['"]python/.test(text));}
+for(const wf of ['checks.yml','windows-build.yml','capture-release-ui.yml']){const workflow=fs.readFileSync(ROOT+'/.github/workflows/'+wf,'utf8');assert(!/setup-python|\bpython(?:3)?\b/.test(workflow));}
 for(const wf of ['checks.yml','windows-build.yml'])for(const m of fs.readFileSync(ROOT+'/.github/workflows/'+wf,'utf8').matchAll(/uses:\s*([^\s]+)@([^\s]+)/g))assert.match(m[2],/^[0-9a-f]{40}$/);
 const fetchSource=fs.readFileSync(ROOT+'/tools/fetch_zig.mjs','utf8');
 assert.match(fetchSource,/execFileSync\('tar',\['-tf',archive\],\{encoding:'utf8',maxBuffer:16\*1024\*1024\}\)/);
@@ -37,3 +37,6 @@ assert(review(new Map([['docs/screenshots/unreviewed.png',Buffer.from([137,80,78
 
 assert(review(new Map([['docs/ChatAtlasData/index.html',Buffer.from('artificial fixture')]]),false).some(([,r])=>r==='private or generated directory'));
 console.log('Native package regression checks passed, including >1 MiB toolchain listing buffer.');
+
+const readerSource=fs.readFileSync(ROOT+'/tools/reader_test.cjs','utf8');
+assert(!/\bpython(?:3)?\b|PYTHONPATH|line_vault/.test(readerSource),'Reader regression must use native fixtures, not historical language runtime');

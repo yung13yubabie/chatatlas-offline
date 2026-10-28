@@ -25,6 +25,8 @@ Linux 需要 GNU C++20、make、系統 SQLite：
 make -C native test build/atlas-cli
 node tools/graph_model_test.cjs
 node native/tests/windows_bridge_contract.cjs
+node native/tests/app_flow_contract.cjs
+node native/tests/ui_dpi_contract.cjs
 node tools/package_test.mjs
 node tools/check_public_tree.mjs
 node tools/package_release.mjs --output dist
@@ -32,7 +34,7 @@ node tools/package_release.mjs --output dist
 
 Windows 的合成 ACL / 核心測試：`node tools/windows_native_tests.mjs`；
 PowerShell 合成測試：`powershell -File native/tests/windows_bridge_test.ps1`。
-這些不開啟 LINE、不讀真實聊天，也不能取代 GUI 實機驗收。
+Windows 原生測試亦包含實際控制項的同程序合成 DPI 訊息、字型／尺寸／捲動驗證，不修改 OS 縮放設定。這些不開啟 LINE、不讀真實聊天，也不能取代真實多螢幕與完整 GUI 實機驗收。
 
 打包只接受經檢查的 Git index 來源與相符的 EXE 來源雜湊，人工範例由原生 CLI 生成；
 輸出資料夾需為新目標，不覆寫既有產物。ZIP 每一項會在寫出前解壓比對。

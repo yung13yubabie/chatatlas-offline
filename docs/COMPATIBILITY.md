@@ -4,13 +4,13 @@
 
 ## 已實作的來源機制
 
-Python 啟動隨包 PowerShell 程式，使用 Windows 內建 UI Automation。程序只接受固定的 JSON 操作：辨識官方簽章的 LINE 視窗、讀取可存取控制項、核對帳號、選取聊天室、捲動、開啟相簿／記事本／討論串，以及經過名稱限制的下載／另存。
+原生 C++ 程式在使用者要求連接 LINE 時，啟動 Windows 系統 PowerShell 並透過管線載入內嵌腳本，使用 Windows 內建 UI Automation。程序只接受固定的 JSON 操作：辨識官方簽章的 LINE 視窗、讀取可存取控制項、核對帳號、選取聊天室、捲動、開啟相簿／記事本／討論串，以及經過名稱限制的下載／另存。
 
 不使用程序注入、記憶體讀取、登入憑證、攔截憑證、遠端 API 或管理員權限。窗口焦點、帳號、來源身份或另存視窗不符時停止。連線程式沒有任意鍵盤輸入、傳送訊息或刪除資料命令。
 
 ## 真實 Windows 上需要完成的驗證
 
-1. 執行 `line-vault doctor`，確認可辨識 LINE、發行者簽章、版本及可讀控制項。
+1. 在原生程式的「連線檢查」使用「檢查這台電腦」，確認可辨識 LINE、發行者簽章、版本及可讀控制項。這不會自動建立一份可用的連線設定。
 2. 在本機確認帳號、聊天室、訊息、相簿、記事本及討論串是否提供穩定識別。UIA RuntimeId 只用作短期操作把手，不能當成跨次更新身份。
 3. 依實際控制項製作私人連線設定，核對同名聊天室、日期、父子關聯、完整附件大小或校驗資訊，以及官方另存視窗。
 4. 測試至少兩次同一來源採集，確認文字更新、完整附件零重複下載；再測試中斷、缺檔、錯誤焦點及帳號切換。
@@ -20,7 +20,7 @@ LINE 自訂控制項若不暴露所需資訊，這條來源方式可能不足；
 
 ## 私人連線設定格式
 
-設定由使用者在「連線設定」載入，存於本機應用資料目錄。它需要 `schema: 1`、`account`、`chats` 及 `panels`。`account` 包含本機識別、實際帳號欄位選擇器與預期值；`chats` 包含清單、列、穩定識別、標題及目前聊天室標題選擇器。
+設定由使用者在「連線檢查」載入，驗證後存於 EXE 旁的 `ChatAtlasData/connection.local.json`；未載入時不會自動產生此設定。不使用 AppData 作為替代位置。它需要 `schema: 1`、`account`、`chats` 及 `panels`。`account` 包含本機識別、實際帳號欄位選擇器與預期值；`chats` 包含清單、列、穩定識別、標題及目前聊天室標題選擇器。
 
 `panels` 分別定義 `message`、`album`、`album_item`、`note`、`comment`、`thread` 的容器、列、欄位、適用聊天室類型及附件儲存控制項。選擇器只接受實際觀察的 `automation_id`、`name`、`control_type`。欄位只能讀名稱、文字或 AutomationId，並用固定前後綴／行號擷取，不執行正規式或程式碼。訊息時間須為有時區的 ISO 8601。
 
@@ -43,3 +43,12 @@ LINE 自訂控制項若不暴露所需資訊，這條來源方式可能不足；
 本版本維持既定安全界線；若 UIA 不提供必要資料，須先重新確認來源方案，再實作及實測。不能只填入看似合理的設定就宣稱所有 LINE 類型已支援。
 
 0.3.0 已移植 Windows 原生執行檔與保存核心，使用 Windows 系統 SQLite 及相同 UIA 連線守則。這不會自動增加 LINE 可暴露的資料；相容性驗收仍未完成。正常開啟 EXE 不需要 Python 或 Node.js。
+
+## 相容性證據的邊界
+
+- Windows 10／11 x64 是目標平台，不代表每個 OS build、更新狀態、企業政策或系統 SQLite 版本均已驗證。CI 的 `windows-latest` 只代表當次 runner；缺少系統元件或必要 API 時停止該功能，不下載替代套件。
+- 中／英／日的部分另存視窗標題與按鈕在白名單內，但語系字串覆蓋不等於真實 LINE 完整整合通過。其他本地化標題會保守拒絕。
+- 閱讀頁以實際瀏覽器能力為準：附件驗證需要 `crypto.subtle.digest`，大於 64 MiB 的串流另存另需 `showSaveFilePicker`。缺能力時清楚提示，不降級成未驗證下載。不能僅依品牌承諾 Safari 一定失敗或 Chromium 系一定成功。iOS 檔案預覽與桌面 `file://` 頁面需分開驗收。
+- 發布頁紀錄已實際執行的測試；未跑過的 OS／瀏覽器／儲存媒體組合標示未驗證。
+
+官方能力說明：[SQLite trusted_schema](https://www.sqlite.org/pragma.html#pragma_trusted_schema)、[File System Access](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)、[Secure Contexts](https://www.w3.org/TR/secure-contexts/)。

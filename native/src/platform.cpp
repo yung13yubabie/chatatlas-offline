@@ -35,11 +35,66 @@ std::string now(){auto t=std::chrono::system_clock::now();time_t tt=std::chrono:
  char out[64];std::strftime(out,sizeof out,"%Y-%m-%dT%H:%M:%S",&tm);return std::string(out)+".000+00:00";}
 void noLinks(const fs::path&given){auto p=fs::absolute(given).lexically_normal();while(!p.empty()){
 #ifdef _WIN32
- DWORD attr=GetFileAttributesW(p.c_str());if(attr!=INVALID_FILE_ATTRIBUTES&&(attr&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("保存位置包含連結，請改用一般私人資料夾。");
+ DWORD attr=GetFileAttributesW(p.c_str());if(attr!=INVALID_FILE_ATTRIBUTES&&(attr&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("保存位置包含雲端同步標記或連結，請改用一般本機私人資料夾。");
 #else
- std::error_code ec;if(fs::is_symlink(fs::symlink_status(p,ec)))throw Error("保存位置包含連結，請改用一般私人資料夾。");
+ std::error_code ec;if(fs::is_symlink(fs::symlink_status(p,ec)))throw Error("保存位置包含雲端同步標記或連結，請改用一般本機私人資料夾。");
 #endif
  auto next=p.parent_path();if(next==p)break;p=next;}}
+// Compare directory identities while walking the resolved ancestry. A lexical
+// prefix is insufficient for case variants, short names, subst and case-sensitive
+// NTFS directories. Handles deliberately omit FILE_SHARE_DELETE while inspected;
+// this is a bounded validation, not a promise against all later ancestor races.
+std::optional<fs::path> relativeToDirectory(const fs::path& target,const fs::path& root){
+ auto full=fs::absolute(target).lexically_normal();auto base=fs::absolute(root).lexically_normal();
+ noLinks(full);noLinks(base);fs::path suffix;
+#ifdef _WIN32
+ struct DirectoryHandle{HANDLE value=INVALID_HANDLE_VALUE;~DirectoryHandle(){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);}};
+ auto openDirectory=[](DirectoryHandle& handle,const fs::path& path){
+  handle.value=CreateFileW(path.c_str(),0,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+  if(handle.value==INVALID_HANDLE_VALUE)throw Error("無法確認資料夾位置，請選擇可存取的一般本機資料夾。");
+  BY_HANDLE_FILE_INFORMATION info{};
+  if(!GetFileInformationByHandle(handle.value,&info)||!(info.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)||(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("資料夾位置包含連結或無法驗證。");
+  return info;
+ };
+ DirectoryHandle rootHandle;const auto rootInfo=openDirectory(rootHandle,base);
+ // Resolve the nearest existing directory. A missing filename or not-yet-created
+ // collection may have several missing components, but other failures are fatal.
+ auto ancestor=full;
+ while(true){
+  DWORD attr=GetFileAttributesW(ancestor.c_str());
+  if(attr!=INVALID_FILE_ATTRIBUTES){
+   if(attr&FILE_ATTRIBUTE_REPARSE_POINT)throw Error("資料夾位置包含雲端同步標記或連結。");
+   if(attr&FILE_ATTRIBUTE_DIRECTORY)break;
+   if(ancestor!=full)throw Error("保存位置的上一層不是資料夾。");
+  }else{auto error=GetLastError();if(error!=ERROR_FILE_NOT_FOUND&&error!=ERROR_PATH_NOT_FOUND)throw Error("無法確認保存位置，請檢查存取權限。");}
+  auto parent=ancestor.parent_path();if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置。");
+  suffix=suffix.empty()?ancestor.filename():ancestor.filename()/suffix;ancestor=parent;
+ }
+ DirectoryHandle current;auto currentInfo=openDirectory(current,ancestor);auto resolved=fs::path(finalHandlePath(current.value));
+ while(true){
+  if(currentInfo.dwVolumeSerialNumber==rootInfo.dwVolumeSerialNumber&&currentInfo.nFileIndexHigh==rootInfo.nFileIndexHigh&&currentInfo.nFileIndexLow==rootInfo.nFileIndexLow)return suffix.empty()?fs::path("."):suffix;
+  auto parts=finalDirectoryParent(resolved.wstring());if(!parts)return std::nullopt;
+  auto parent=parts->first;suffix=suffix.empty()?parts->second:parts->second/suffix;
+  // Validate the resolved spelling too; an alias must not hide a reparse ancestor.
+  noLinks(parent);CloseHandle(current.value);current.value=INVALID_HANDLE_VALUE;
+  currentInfo=openDirectory(current,parent);resolved=fs::path(finalHandlePath(current.value));
+ }
+#else
+ std::error_code ec;auto ancestor=full;
+ while(!fs::is_directory(ancestor,ec)){
+  if(ec&&ec!=std::errc::no_such_file_or_directory)throw Error("無法確認保存位置。");
+  ec.clear();auto parent=ancestor.parent_path();if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置。");
+  suffix=suffix.empty()?ancestor.filename():ancestor.filename()/suffix;ancestor=parent;
+ }
+ if(!fs::is_directory(base))throw Error("參考位置不是資料夾。");
+ auto resolved=fs::canonical(ancestor);auto baseResolved=fs::canonical(base);
+ while(true){
+  if(fs::equivalent(resolved,baseResolved))return suffix.empty()?fs::path("."):suffix;
+  auto parent=resolved.parent_path();if(parent.empty()||parent==resolved)return std::nullopt;
+  suffix=suffix.empty()?resolved.filename():resolved.filename()/suffix;resolved=parent;
+ }
+#endif
+}
 fs::path privateDir(fs::path p){p=fs::absolute(p).lexically_normal();noLinks(p);
  // Only protect a directory created by this call. Existing destination parents
  // may be shared system or user folders; changing their permissions is unsafe.

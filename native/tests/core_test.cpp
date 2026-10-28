@@ -92,6 +92,12 @@ int main(int argc,char**argv){
  fs::permissions(fixture,fs::perms::owner_all,fs::perm_options::replace); // Exclusively created above.
 #endif
  const auto outputParent=permissionTests(fixture);
+ {
+  const auto cancelledRoot=fixture/"cancelled-before-open";bool cancelled=false;
+  try{Store unused(cancelledRoot,[]{throw Cancelled();});}catch(const Cancelled&){cancelled=true;}
+  expect(cancelled,"store opening honors cancellation before touching disk");
+  expect(!fs::exists(cancelledRoot),"cancelled store creates no directory");
+ }
  expect(sha("")=="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","empty SHA");expect(sha("abc")=="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","abc SHA");expect(base64("abc")=="YWJj"&&base64("a")=="YQ==","base64");expect(normalizeTime("2026-01-01T08:30:00+08:00")=="2026-01-01T00:30:00.000+00:00","time zone");rejected([&]{normalizeTime("2026-02-30T08:00:00Z");},"bad date");rejected([&]{normalizeTime("2026-01-01T08:00:00");},"missing zone");expect(safeName("CON")=="_CON","Windows reserved name");rejected([&]{within(root,"../private");},"path traversal");
  {
  Store s(root);Control control;DemoSource demo;auto first=collect(s,demo,demo.chats(),control);expect(first["items"]==19,"native demo count");expect(first["downloaded"]==2&&demo.downloads==2,"exact content reuse");expectHealthy(s,"healthy archive");for(const auto&blob:s.db.rows("SELECT path FROM blobs")){auto actual=fs::relative(within(s.root,blob["path"].get<std::string>()),s.root).generic_u8string();expect(std::string(actual.begin(),actual.end())==blob["path"].get<std::string>(),"registered asset uses portable separators");}auto count=s.summary()["items"];DemoSource second(2);auto update=collect(s,second,second.chats(),control);expect(update["downloaded"]==0&&second.downloads==0&&update["reused"]==3,"second capture has zero downloads");expect(s.summary()["items"]==count,"message update has no duplicates");auto cid=s.db.rows("SELECT id FROM chats WHERE source_id='project'")[0]["id"].get<std::string>();expect(s.db.rows("SELECT text FROM items WHERE chat_id=? AND source_id='m1'",{cid})[0]["text"].get<std::string>().find("已更新")!=std::string::npos,"latest message replaces old");
@@ -115,6 +121,15 @@ int main(int argc,char**argv){
 #endif
  auto job=s.db.rows("SELECT id FROM jobs ORDER BY id DESC LIMIT 1")[0]["id"];s.db.execute("UPDATE jobs SET status='running' WHERE id=?",{job});
  }
+#ifdef _WIN32
+ {
+  size_t initialTicks=1;for(auto node=fs::absolute(root).lexically_normal();!node.empty();){++initialTicks;auto parent=node.parent_path();if(parent==node)break;node=parent;}
+  size_t ticks=0;bool cancelled=false;const auto before=digest(root/"archive.sqlite3").hash;
+  try{Store unused(root,[&]{if(++ticks>initialTicks)throw Cancelled();});}catch(const Cancelled&){cancelled=true;}
+  expect(cancelled,"existing archive scan can be cancelled at a child entry");
+  expect(digest(root/"archive.sqlite3").hash==before,"cancelled opening leaves database bytes unchanged");
+ }
+#endif
  {Store again(root);expect(again.db.rows("SELECT status FROM jobs ORDER BY id DESC LIMIT 1")[0]["status"]=="interrupted","interrupted job recovered");}
 
  {auto p=root.parent_path()/(root.filename().string()+"-retry");{Store s(p);struct Temporary:DemoSource{int attempts=0;fs::path download(const J&c,const J&a,const fs::path&d,Control&control)override{if(attempts++==0)throw RetryableDownload("temporary");return DemoSource::download(c,a,d,control);}}source;Control c;auto result=collect(s,source,source.chats(),c);expect(result["failed"]==0&&source.attempts==3,"temporary transfer retries safely");}fs::remove_all(p);}

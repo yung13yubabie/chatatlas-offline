@@ -4,12 +4,12 @@ $tokens=$null; $errors=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $source),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw ($errors | Out-String) }
 # Load only pure guards; never execute the worker or contact a real LINE process.
-foreach ($name in @('Assert-Window','Assert-SaveDialog','Assert-SaveDestination','Assert-OwnedSaveConfirmation','Wait-SaveCompletion')) {
+foreach ($name in @('Assert-Window','Assert-SaveDialog','Assert-SaveDestination','Assert-OwnedSaveConfirmation','Close-TrackedSaveAfterConfirmation','Wait-SaveCompletion')) {
  $fn=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
  if (!$fn) { throw "Missing guard $name" }
  Invoke-Expression $fn.Extent.Text
 }
-Add-Type 'public static class VaultNative { public static System.IntPtr Foreground = new System.IntPtr(123); public static System.IntPtr Owner = new System.IntPtr(123); public static System.IntPtr GetWindow(System.IntPtr h, uint command) { return Owner; } public static System.IntPtr GetForegroundWindow() { return Foreground; } }'
+Add-Type 'public static class VaultNative { public static System.IntPtr Foreground = new System.IntPtr(123); public static System.IntPtr Owner = new System.IntPtr(123); public static System.IntPtr ParentOwner = System.IntPtr.Zero; public static System.IntPtr GetWindow(System.IntPtr h, uint command) { return h.ToInt64() == 123 ? ParentOwner : Owner; } public static System.IntPtr GetForegroundWindow() { return Foreground; } }'
 $script:ProcessId=42; $script:ProcessPath='C:\Synthetic\LINE.exe'
 $script:ProcessStarted=123
 $script:Main=[pscustomobject]@{Current=[pscustomobject]@{ProcessId=42}}
@@ -43,7 +43,7 @@ $value.Current.Value=$dest
 try { [IO.File]::WriteAllText($dest,'synthetic'); Expect-Error { Assert-SaveDestination $value $dest } 'invalid_destination' } finally { if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest } }
 
 # No UI automation is performed: synthetic identity/ownership guards only.
-function Node-Key($e) { return [string]$e.Current.NativeWindowHandle }
+function Node-Key($e) { if ($e.PSObject.Properties['FakeKey']) { return $e.FakeKey }; return [string]$e.Current.NativeWindowHandle }
 $dialog=New-Dialog
 $confirmation=New-Dialog
 $confirmation.Current.Name='Confirm Save As';$confirmation.Current.NativeWindowHandle=124
@@ -64,30 +64,103 @@ Expect-Error { Assert-OwnedSaveConfirmation $confirmation $dialog '123' 123 } 'f
 # Simulated lifecycle: only test doubles receive Close(), never any real window.
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
-$script:ClosedConfirmation=0;$script:ClosedSave=0
-$closeConfirmation=[pscustomobject]@{}
-$closeConfirmation | Add-Member ScriptMethod Close { $script:ClosedConfirmation++;[VaultNative]::Foreground=[IntPtr]123 }
-$closeSave=[pscustomobject]@{}
-$closeSave | Add-Member ScriptMethod Close { $script:ClosedSave++ }
-$confirmation | Add-Member ScriptMethod GetCurrentPattern { param($pattern) return $closeConfirmation }
-$dialog | Add-Member ScriptMethod GetCurrentPattern { param($pattern) return $closeSave }
-$script:FakeDialogs=@($dialog,$confirmation)
 function Get-LineDialogs { return $script:FakeDialogs }
-[VaultNative]::Foreground=[IntPtr]124
-Expect-Error { Wait-SaveCompletion $dialog $value $dest '123' 123 } 'save_conflict'
-if ($script:ClosedConfirmation -ne 1 -or $script:ClosedSave -ne 1) { throw 'owned_confirmation_cancel_failed' }
-$script:ClosedConfirmation=0;$script:ClosedSave=0
-$confirmation.Current.Name='Unrelated user dialog'
-[VaultNative]::Foreground=[IntPtr]124
-Expect-Error { Wait-SaveCompletion $dialog $value $dest '123' 123 } 'save_dialog_unsupported'
-if ($script:ClosedConfirmation -or $script:ClosedSave) { throw 'unrelated_dialog_was_closed' }
-$confirmation.Current.Name='Confirm Save As'
+function Start-Sleep {
+ param($Milliseconds)
+ $script:PollTicks++
+ & $script:OnSleep
+ [Threading.Thread]::Sleep([Math]::Min($Milliseconds,20))
+}
+function Reset-Lifecycle {
+ $script:ClosedConfirmation=0;$script:ClosedSave=0;$script:PollTicks=0
+ $script:OnSleep={}
+ $script:OnConfirmationClose={ $script:FakeDialogs=@($script:Dialog);[VaultNative]::Foreground=[IntPtr]123 }
+ $script:OnSaveClose={}
+ $script:Dialog=New-Dialog
+ $script:Confirmation=New-Dialog
+ $script:Confirmation.Current.Name='Confirm Save As';$script:Confirmation.Current.NativeWindowHandle=124
+ $script:CloseConfirmation=[pscustomobject]@{}
+ $script:CloseConfirmation | Add-Member ScriptMethod Close { $script:ClosedConfirmation++;& $script:OnConfirmationClose }
+ $script:CloseSave=[pscustomobject]@{}
+ $script:CloseSave | Add-Member ScriptMethod Close { $script:ClosedSave++;& $script:OnSaveClose }
+ $script:Confirmation | Add-Member ScriptMethod GetCurrentPattern { param($pattern) return $script:CloseConfirmation }
+ $script:Dialog | Add-Member ScriptMethod GetCurrentPattern { param($pattern) return $script:CloseSave }
+ $script:FakeDialogs=@($script:Dialog,$script:Confirmation)
+ $script:FakeProcess.Path=$script:ProcessPath
+ $value.Current.Value=$dest
+ [VaultNative]::Owner=[IntPtr]123;[VaultNative]::ParentOwner=[IntPtr]::Zero;[VaultNative]::Foreground=[IntPtr]124
+}
+function Expect-LifecycleError($expected,$confirmationCloses,$saveCloses) {
+ Expect-Error { Wait-SaveCompletion $script:Dialog $value $dest '123' 123 } $expected
+ if ($script:ClosedConfirmation -ne $confirmationCloses -or $script:ClosedSave -ne $saveCloses) { throw ('unexpected_close_count:'+ $expected) }
+}
+Reset-Lifecycle
+Expect-LifecycleError 'save_conflict' 1 1
+# Delayed close and transient zero focus; the original save window stays open
+# until its tracked confirmation disappears AND focus actually returns.
+foreach ($ticks in @(3,10)) {
+ Reset-Lifecycle
+ $script:DelayTicks=$ticks
+ $script:OnConfirmationClose={}
+ $script:OnSleep={
+  if ($script:PollTicks -eq 1) { $script:FakeDialogs=@($script:Dialog);[VaultNative]::Foreground=[IntPtr]::Zero }
+  if ($script:PollTicks -ge $script:DelayTicks) { [VaultNative]::Foreground=[IntPtr]123 }
+  if ($script:ClosedSave) { throw 'closed_before_focus_returned' }
+ }
+ Expect-LifecycleError 'save_conflict' 1 1
+ if ($script:PollTicks -lt $ticks) { throw 'did_not_wait_for_focus' }
+}
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:FakeDialogs=@($script:Dialog);[VaultNative]::Foreground=[IntPtr]::Zero }
+$watch=[Diagnostics.Stopwatch]::StartNew()
+Expect-LifecycleError 'save_conflict_cleanup_required' 1 0
+if ($watch.ElapsedMilliseconds -gt 3000) { throw 'cleanup_not_bounded' }
+# A still-visible confirmation is also bounded, never blindly closed twice.
+Reset-Lifecycle
+$script:OnConfirmationClose={}
+Expect-LifecycleError 'save_conflict_cleanup_required' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:FakeDialogs=@($script:Dialog);[VaultNative]::Foreground=[IntPtr]999 }
+Expect-LifecycleError 'focus_changed' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:Dialog | Add-Member NoteProperty FakeKey 'replacement';$script:FakeDialogs=@($script:Dialog);[VaultNative]::Foreground=[IntPtr]123 }
+Expect-LifecycleError 'save_dialog_unsupported' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:FakeDialogs=@($script:Dialog);[VaultNative]::ParentOwner=[IntPtr]999;[VaultNative]::Foreground=[IntPtr]123 }
+Expect-LifecycleError 'save_dialog_unsupported' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:FakeDialogs=@($script:Dialog);$value.Current.Value=$dest+'.changed';[VaultNative]::Foreground=[IntPtr]123 }
+Expect-LifecycleError 'invalid_destination' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:FakeProcess.Path='C:\Other\LINE.exe' }
+Expect-LifecycleError 'wrong_process' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $script:Confirmation | Add-Member NoteProperty FakeKey 'replacement' }
+Expect-LifecycleError 'save_dialog_unsupported' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ $other=New-Dialog;$other.Current.NativeWindowHandle=125;$script:FakeDialogs=@($script:Dialog,$other) }
+Expect-LifecycleError 'save_dialog_unsupported' 1 0
+# Cancellation/failure while polling must propagate, not be swallowed and close
+# the parent later. Native Control cancellation terminates the worker process.
+Reset-Lifecycle
+$script:OnConfirmationClose={}
+$script:OnSleep={ throw 'test_cancelled' }
+Expect-LifecycleError 'test_cancelled' 1 0
+Reset-Lifecycle
+$script:OnConfirmationClose={ throw 'synthetic_close_failure' }
+Expect-LifecycleError 'save_conflict_cleanup_required' 1 0
+Reset-Lifecycle
+$script:OnSaveClose={ throw 'synthetic_close_failure' }
+Expect-LifecycleError 'save_conflict_cleanup_required' 1 1
+Reset-Lifecycle
+$script:Confirmation.Current.Name='Unrelated user dialog'
+Expect-LifecycleError 'save_dialog_unsupported' 0 0
+Reset-Lifecycle
 [VaultNative]::Owner=[IntPtr]999
-Expect-Error { Wait-SaveCompletion $dialog $value $dest '123' 123 } 'focus_changed'
-if ($script:ClosedConfirmation -or $script:ClosedSave) { throw 'foreign_owner_was_closed' }
-[VaultNative]::Owner=[IntPtr]123
+Expect-LifecycleError 'focus_changed' 0 0
+Reset-Lifecycle
 $script:FakeDialogs=@()
-Wait-SaveCompletion $dialog $value $dest '123' 123
+Wait-SaveCompletion $script:Dialog $value $dest '123' 123
 if ($script:ClosedConfirmation -or $script:ClosedSave) { throw 'completed_save_was_closed' }
 Write-Output 'Windows bridge guard tests passed; no real LINE UI was accessed.'
 # Exercise the actual C++ bootstrap with a harmless worker, including a queued request.

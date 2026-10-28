@@ -25,12 +25,12 @@ assert(!/LOCALAPPDATA|LocalAppData|SHGetKnownFolderPath|GetTempPath/.test(cpp),'
 assert(cpp.includes('GetModuleFileNameW(nullptr,path.data()')&&cpp.includes('count>=path.size()'),'executable path lookup is bounded');
 assert(cpp.includes('privateDir(executableDirectory()/L"ChatAtlasData")'),'portable data stays beside EXE');
 assert(cpp.includes('ExclusiveFile file(probe);owned=true;file.sync();')&&cpp.includes('不會改用其他位置保存'),'unwritable portable root fails explicitly');
-assert(cpp.includes('absolute.lexically_relative(executableDirectory())')&&cpp.includes('value["archive_base"]="portable"'),'inside-executable archive preferences are relative');
+assert(cpp.includes('relativeToDirectory(absolute,executableDirectory())')&&cpp.includes('value["archive_base"]="portable"'),'inside-executable archive preferences are relative');
 assert(cpp.includes('return within(executableDirectory(),name);'),'portable preferences resolve against current EXE location');
 assert(cpp.includes('if(name==".")return executableDirectory();'),'portable root choice roundtrips without relaxing relative path validation');
 assert(cpp.includes('if(!selected.is_absolute())throw Error('),'untagged relative preferences are rejected');
 assert(cpp.includes('L"Collections"')&&cpp.includes('L"Example"'),'defaults and example remain under portable config');
-assert.equal((cpp.match(/0\.3\.1-alpha\.3/g)||[]).length,2,'both visible version labels match alpha3');
+assert.equal((cpp.match(/0\.3\.1-alpha\.4/g)||[]).length,2,'both visible version labels match alpha4');
 const archive=fs.readFileSync(path.join(__dirname,'../src/archive.cpp'),'utf8');
 assert(!archive.includes('std::ifstream')&&archive.includes('VerifiedInput in(within(s.root,rel))')&&archive.includes('VerifiedInput in(p)'),'archive read paths use verified handles');
 assert(archive.includes('in.size()!=b["size"].get<uint64_t>()'),'attachment size is checked on opened handle before chunk generation');

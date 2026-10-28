@@ -1,38 +1,34 @@
-# 0.3.1-alpha.3 候選版狀態
+# 0.3.1-alpha.4 候選版狀態
 
-更新：2026-10-28。main 正在整合 alpha.3；最新已發布版本仍以 Release 頁為準。實驗預覽版，不是已完成的 LINE 備份工具。
+更新：2026-10-28。main 正在整合 alpha.4；是否已發布與最後驗收狀態，以對應 Release 頁為準。這是實驗預覽版，不是已完成的 LINE 備份工具。
 
-本輪核對與可攜設定決策見 [alpha.3 修正紀錄](ALPHA3_REVIEW.md)。設定、預設收藏與範例改存 EXE 旁 ChatAtlasData，不會回退到 AppData 或暫存資料夾，也不自動搬移或刪除舊資料。
+## 本輪範圍
 
-## 此次可驗證範圍
+[DPI、保存位置、路徑身分、UIA 回焦及 SQLite 能力修正](ALPHA4_REVIEW.md)採先查證、再修改的流程。繼續維持 EXE 旁 ChatAtlasData、無 AppData fallback、不改既有資料夾 ACL、不安裝套件、HTML 無外部 CDN。
 
-- 原生 EXE、全部 CI、建置與打包流程不使用 Python；Node.js 僅為開發、測試與建置工具。
-- Windows 私人 ACL、檔案控制代碼驗證、LINE 程序與另存對話框驗證的修改需以本版 Windows 合成測試結果為準。
-- 原生 build 加入 strong stack protector；CFG 仍未啟用，Authenticode 仍未簽章。
-- Actions 原本已釘選完整 commit SHA；本版保留釘選並新增 tag 建置、原生打包與受限權限的 build attestation。
-- GitHub attestation 必須由實際成功執行的 workflow 產生並驗證，不能只靠本文件或本機 JSON 宣稱存在。
-- 發布是否通過驗收，以 Release 頁所列精確 commit 的 CI 結果為準；必須同時通過來源、Windows 合成測試與實際發布 EXE 測試，不能沿用前版結果。
+本版的全部 CI、原生建置與封裝不執行 Python。舊 Python 來源只保留歷史參考，不是使用者啟動入口。
 
-## 本機可確認與限制
+## 驗收規則
 
-Node 封裝回歸測試已通過（ZIP 往返、CRC、非法路徑拒絕、完整 SHA 釘選與無 Python 原生管線）。
-目前工作環境的暫存根目錄屬 Git 樹，原生收藏保護會拒絕合成 Store 建立；
-因此本機端到端封裝與完整核心 Store 測試未完成，應由正常隔離的 CI 暫存區驗證，
-不會移除保護繞過。
+- 對最終 commit 執行 source checks、Windows 原生／合成測試及實際發布 EXE 測試；不可沿用前版 CI。
+- 發布四個原始 CI 產物，核對 SHA-256 與 GitHub attestation，不本機重包後宣稱仍有原來源證明。
+- 新版畫面需來自實際執行，不替舊圖改標版本。
+- 通過、失敗、跳過與未測分別列出；windows-latest／Chromium CI 不等同全系統、全瀏覽器或真實 LINE 整合。
 
-## 前版已完成紀錄
+## 本機環境限制
 
-alpha.1 的 source checks 六個 job 及 native build 已通過，舊版文件所記錄的初期環境阻擋
-不代表最終 CI 仍失敗。這只適用於 commit `4ef4e7af5d40553fad42d0a7caf29e2affa575a0`：
+本機暫存祖先有 Git 標記，收藏保護會拒絕在其中建立 Store；不移除或繞過保護。完整 Store／端到端封裝由正常隔離的 CI 暫存區驗證。本機可進行不依賴 Store 建立的來源契約、路徑、資料庫及交叉編譯。
 
-- https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40619562124
-- https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40619848176
+## 前版紀錄
 
-## 未完成驗收
+alpha.3 的已發布 tag、來源及資產保持不變：
 
-CI 包含原生視窗啟動、必要控制項與正常關閉測試；它不等於使用者電腦上的完整互動驗收。
-個人 Windows 環境、完整 LINE 自動採集、版面設定與多 GB 附件仍需另外實機驗收。
-本次不是深入獨立安全稽核，未宣稱沒有暗門、沒有漏洞或任何情況都不會外連。
-檔案雜湊、重編譯比對、PE 匯入表及 CSP 各自只有有限證明範圍。
+- [alpha.3 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.3)
+- [alpha.3 tag Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40652910732)
+- [alpha.3 tag Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40652910690)
 
-保留原始資料及第二份副本，不應用預覽版處理唯一一份重要聊天。
+以上成功紀錄只屬 alpha.3，不是本版驗收。
+
+## 保留限制
+
+真實 LINE 採集、可用版面設定、個人 Windows 環境、不同縮放／儲存媒體及多 GB 真實工作負載仍需另行實測。Authenticode 未簽章、CFG 未啟用。不宣稱沒有漏洞、無暗門或任何情況都不會外連。請保留原始資料與第二份副本，不要使用預覽版處理唯一一份重要聊天。

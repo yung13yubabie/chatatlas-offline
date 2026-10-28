@@ -38,3 +38,23 @@ assert(ps.includes('[VaultNative]::GetWindow([IntPtr]$c.NativeWindowHandle,4)'))
 assert(ps.includes('$close.Close()'));
 assert(!ps.includes("Invoke-Item"));
 console.log('Bridge limits and narrowly owned confirmation source contracts passed.');
+
+// A modal Close is asynchronous with respect to focus restoration. The bounded
+// cleanup may observe, but never activate or overwrite an unverified window.
+const cleanup=ps.slice(ps.indexOf('function Close-TrackedSaveAfterConfirmation('),ps.indexOf('function Wait-SaveCompletion('));
+assert(cleanup.includes('[Diagnostics.Stopwatch]::StartNew()'));
+assert(cleanup.includes('$elapsed.ElapsedMilliseconds -lt 500'));
+assert(cleanup.includes('Start-Sleep -Milliseconds 20'));
+assert(cleanup.includes('Assert-Window'));
+assert(cleanup.includes('(Node-Key $dialog) -cne $dialogKey'));
+assert(cleanup.includes('[VaultNative]::GetWindow([IntPtr]$dialogHandle,4) -ne $dialogOwner'));
+assert(cleanup.includes('$valuePattern.Current.Value -cne $dest'));
+assert(cleanup.includes('(Node-Key $extra[0]) -cne $confirmationKey'));
+assert(cleanup.includes('$extra.Count -eq 0 -and $foreground -eq [IntPtr]$dialogHandle'));
+assert(cleanup.includes("throw 'focus_changed'"));
+assert(cleanup.includes("throw 'save_conflict_cleanup_required'"));
+assert(!cleanup.includes('SetForegroundWindow'));
+assert(!cleanup.includes('.Invoke('));
+assert(!cleanup.includes('catch { }'));
+assert(ps.includes("'save_conflict','save_conflict_cleanup_required','save_incomplete'"));
+console.log('Bounded, identity-checked save cancellation source contracts passed.');
