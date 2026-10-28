@@ -1,0 +1,61 @@
+#include "core.hpp"
+#include <iostream>
+using namespace atlas;
+namespace {
+int checks=0;
+void expect(bool yes,const char* why){++checks;if(!yes)throw std::runtime_error(why);}
+template<class F> void rejected(F fn,const char* why){bool failed=false;try{fn();}catch(const std::exception&){failed=true;}expect(failed,why);}
+struct HistorySource:Source{
+ int revision=1,fileVersion=1,downloads=0;bool fail=false,stop=false,secondFile=false;int stopAfterDownloads=-1;
+ HistorySource(){account="synthetic-history-account";}
+ J chats()override{return J::array({{{"source_id","room"},{"title","Artificial history"},{"kind","group"}}});}
+ std::string bytes()const{return "artificial file version "+std::to_string(fileVersion);}
+ Batch read(const J&,const std::set<std::string>&,const std::string&,const std::string&,Control& control)override{
+  if(stop){control.stopped=true;control.check();}if(fail)throw Error("Synthetic read failure");
+  Batch b;b.coverage="visible_only";
+  auto item=[&](const char* id,const char* kind,const char* parent=""){J i={{"source_id",id},{"kind",kind},{"text",std::string("private body ")+id+" rev "+std::to_string(revision)},{"title","private title"},{"sender_name","private sender"},{"sent_at","2026-10-28T00:00:00.000+00:00"},{"metadata",{{"private_field","private extra body"}}}};if(*parent)i["parent_source_id"]=parent;b.items.push_back(i);};
+  item("plain","message");item("parent","message");item("thread","thread","parent");item("file-message","message","thread");item("note","note");
+  b.attachments.push_back({{"source_id","file"},{"item_source_id","file-message"},{"name","history.txt"},{"kind","file"},{"version",std::to_string(fileVersion)},{"expected_size",bytes().size()},{"expected_sha256",sha(bytes())}});if(secondFile)b.attachments.push_back({{"source_id","file2"},{"item_source_id","file-message"},{"name","second.txt"},{"kind","file"},{"version",std::to_string(fileVersion)},{"expected_size",bytes().size()+7},{"expected_sha256",sha(bytes()+" second")}});return b;
+ }
+ fs::path download(const J&,const J&attachment,const fs::path& dest,Control& control)override{if(stopAfterDownloads>=0&&downloads>=stopAfterDownloads)control.stopped=true;control.check();++downloads;auto p=dest/"payload.bin";atomicText(p,bytes()+(attachment["source_id"]=="file2"?" second":""));return p;}
+};
+std::string body(Store&s,const char* id){return s.db.rows("SELECT text FROM items WHERE source_id=?",{id})[0]["text"].get<std::string>();}
+void makeLegacy(const fs::path& root,bool fault=false){Db db(root/"archive.sqlite3");db.transaction([&]{db.execute("CREATE TABLE jobs_v1(id INTEGER PRIMARY KEY,chat_id TEXT NOT NULL REFERENCES chats(id),status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,coverage TEXT NOT NULL DEFAULT 'unknown',counts TEXT NOT NULL DEFAULT '{}')");db.execute("INSERT INTO jobs_v1 SELECT id,chat_id,status,started_at,finished_at,coverage,counts FROM jobs");db.execute("DROP TABLE jobs");db.execute("ALTER TABLE jobs_v1 RENAME TO jobs");db.execute("DROP TABLE capture_state");db.execute("PRAGMA user_version=1");});if(fault){db.execute("UPDATE jobs SET status='running'");db.execute("CREATE TRIGGER synthetic_migration_failure BEFORE UPDATE ON jobs BEGIN SELECT RAISE(ABORT,'synthetic rollback check'); END");}}
+}
+int main(int argc,char**argv){try{
+ if(argc!=2)throw Error("Provide one empty, owned fixture directory");auto base=fs::absolute(path8(argv[1]));if(!fs::is_directory(base)||!fs::is_empty(base))throw Error("Fixture directory must exist and be empty");
+ auto root=base/"history";
+ {
+  Store s(root);expect(archiveSchemaVersion(root)==2,"fresh archives use schema2");Control c;HistorySource source;
+  auto first=collect(s,source,source.chats(),c);expect(first["downloaded"]==1&&source.downloads==1,"first capture downloads once");
+  auto history=s.history();expect(history.size()==1&&history[0]["options"]["message_mode"]=="update"&&history[0]["account"]==source.account,"history preserves bounded options and account identity");
+  source.revision=2;auto second=collect(s,source,source.chats(),c);expect(second["downloaded"]==0&&second["reused"]==1&&source.downloads==1,"second capture reuses verified bytes");expect(body(s,"plain").find("rev 2")!=std::string::npos,"update replaces by source identity");
+  source.revision=3;auto skipped=collect(s,source,source.chats(),c,allKinds,"","",{},"skip_text");expect(body(s,"plain").find("rev 2")!=std::string::npos&&skipped["retained_messages"]==4,"skip_text preserves existing message and thread rows");expect(skipped["downloaded"]==0,"skip_text preserves attachment dedupe");
+  auto state=s.db.rows("SELECT * FROM capture_state"),items=s.db.rows("SELECT * FROM items"),blobs=s.db.rows("SELECT * FROM blobs");
+  for(auto&row:s.history())s.deleteHistory(row["id"].get<int64_t>());expect(s.historyCount()==0,"selected terminal histories delete");expect(s.db.rows("SELECT * FROM capture_state")==state&&s.db.rows("SELECT * FROM items")==items&&s.db.rows("SELECT * FROM blobs")==blobs,"history deletion preserves latest state and all content");
+  auto again=collect(s,source,source.chats(),c);expect(again["downloaded"]==0&&source.downloads==1,"cleared history does not cause redownload");expect(s.history(1)[0]["id"]>state[0]["job_id"],"deleted history identifiers are not reused");
+  source.fileVersion=2;auto newer=collect(s,source,source.chats(),c);expect(newer["downloaded"]==1&&s.db.rows("SELECT count(*) AS n FROM attachments")[0]["n"]==2,"new file version retains old attachment");
+  auto newest=s.db.rows("SELECT b.path FROM blobs b JOIN attachments a ON a.blob_id=b.id WHERE a.version='2'")[0]["path"].get<std::string>();atomicText(within(root,newest),"synthetic corruption");auto repaired=collect(s,source,source.chats(),c);expect(repaired["downloaded"]==1,"corrupted bytes are not reused");fs::remove(within(root,newest));auto missing=collect(s,source,source.chats(),c);expect(missing["downloaded"]==1,"missing bytes are fetched again");
+  auto cid=s.db.rows("SELECT id FROM chats")[0]["id"];s.db.transaction([&]{for(int i=0;i<205;i++)s.db.execute("INSERT INTO jobs(chat_id,status,started_at,finished_at,coverage,counts) VALUES(?,'complete',?,?,'unknown','{}')",{cid,now(),now()});});
+  auto page=s.history(2,0),older=s.history(2,2);expect(page.size()==2&&older.size()==2&&page[1]["id"]>older[0]["id"],"history supports bounded older-page access");expect(s.historyCount()>205,"all retained rows counted");expect(page[0]["options"].is_null(),"legacy or absent options are not guessed");rejected([&]{s.history(201);},"unbounded history request rejected");
+  s.db.execute("INSERT INTO jobs(chat_id,status,started_at) VALUES(?,'running',?)",{cid,now()});auto running=s.db.lastId();s.recordCaptureState(running);rejected([&]{s.deleteHistory(running);},"running history cannot be deleted");
+ }
+ {
+  Store s(root);expect(s.history(1)[0]["status"]=="interrupted"&&s.db.rows("SELECT status FROM capture_state")[0]["status"]=="interrupted","restart resolves both running history and latest state");
+  HistorySource source;Control stop;source.stop=true;rejected([&]{collect(s,source,source.chats(),stop);},"stopped capture exits");expect(s.history(1)[0]["status"]=="stopped"&&s.history(1)[0]["counts"]["downloaded"]==0,"stopped history preserves counts");
+  source.stop=false;source.fail=true;Control c;rejected([&]{collect(s,source,source.chats(),c);},"failed capture exits");expect(s.history(1)[0]["status"]=="failed"&&s.history(1)[0]["counts"]["downloaded"]==0,"failed history preserves counts");
+ }
+ {
+  Store s(base/"skip-new");HistorySource source;Control c;auto result=collect(s,source,source.chats(),c,allKinds,"","",{},"skip_text");expect(result["downloaded"]==1&&result["omitted_messages"]==3,"new attachment stores only required message ancestors");expect(s.db.rows("SELECT 1 FROM items WHERE source_id='plain'").empty(),"unneeded new message not persisted");
+  for(auto&row:s.db.rows("SELECT * FROM items WHERE kind IN ('message','thread')")){expect(row["text"]==""&&row["title"]==""&&row["sender_name"]=="","omitted anchor has no body title or sender");auto metadata=J::parse(row["metadata"].get<std::string>());expect(metadata.value("content_omitted",false)&&!metadata.contains("private_field"),"alternate metadata does not leak omitted text");}
+  expect(s.check({},false).empty(),"attachment anchor relations and bytes valid");auto page=exportHtml(s);expect(fs::exists(page),"omitted anchors export successfully");source.revision=2;auto again=collect(s,source,source.chats(),c,allKinds,"","",{},"skip_text");expect(again["downloaded"]==0&&source.downloads==1,"files-only repeat is reusable");
+ }
+ {Store s(base/"stop-progress");HistorySource source;source.secondFile=true;source.stopAfterDownloads=1;Control c;rejected([&]{collect(s,source,source.chats(),c);},"stop after a saved attachment exits");auto row=s.history(1)[0];expect(row["status"]=="stopped"&&row["coverage"]=="visible_only"&&row["counts"]["downloaded"]==1,"stopped history retains known coverage and saved count");expect(s.db.rows("SELECT coverage FROM capture_state")[0]["coverage"]=="visible_only","latest state retains known interrupted coverage");}
+ auto legacy=base/"legacy";{Store s(legacy);HistorySource source;Control c;collect(s,source,source.chats(),c);}makeLegacy(legacy);
+ auto before=digest(legacy/"archive.sqlite3").hash;rejected([&]{Store s(legacy);},"legacy upgrade requires explicit permission");expect(digest(legacy/"archive.sqlite3").hash==before&&archiveSchemaVersion(legacy)==1,"declined upgrade leaves database unchanged");
+ fs::path snapshot;{Store s(legacy,{},true);snapshot=s.upgradeSnapshot;expect(!snapshot.empty()&&fs::is_regular_file(snapshot)&&archiveSchemaVersion(legacy)==2,"approved migration keeps unique snapshot");Db old(snapshot,false);expect(old.rows("PRAGMA user_version")[0].begin().value()==1&&old.rows("SELECT count(*) AS n FROM items")[0]["n"]==5,"snapshot retains old format and contents");expect(s.history(1)[0]["options"].is_null()&&!s.db.rows("SELECT * FROM capture_state").empty(),"legacy metadata backfilled without invented options");}
+ {Store s(legacy);expect(s.upgradeSnapshot.empty()&&fs::is_regular_file(snapshot),"migration is idempotent and snapshot retained");}
+ auto rollback=base/"rollback";{Store s(rollback);HistorySource source;Control c;collect(s,source,source.chats(),c);}makeLegacy(rollback,true);rejected([&]{Store s(rollback,{},true);},"migration SQL failure rolls back");{Db check(rollback/"archive.sqlite3",false);expect(check.rows("PRAGMA user_version")[0].begin().value()==1,"failed migration retains old version");bool options=false;for(auto&column:check.rows("PRAGMA table_info(jobs)"))if(column["name"]=="options")options=true;expect(!options,"failed migration rolls back added column");expect(check.rows("SELECT name FROM sqlite_master WHERE type='table' AND name='capture_state'").empty(),"failed migration rolls back latest-state table");bool saved=false;for(auto&entry:fs::directory_iterator(rollback))if(entry.path().filename().string().rfind("before-format2-",0)==0){Db backup(entry.path(),false);saved=backup.rows("PRAGMA user_version")[0].begin().value()==1;}expect(saved,"failed migration preserves its old-format snapshot");}
+ {Db db(legacy/"archive.sqlite3");db.execute("PRAGMA user_version=99");}auto unknown=digest(legacy/"archive.sqlite3").hash;rejected([&]{Store s(legacy,{},true);},"unknown version refuses even with migration consent");expect(digest(legacy/"archive.sqlite3").hash==unknown,"unknown version not reset");
+ std::cout<<checks<<" capture history, text policy and migration checks passed\n";return 0;
+ }catch(const std::exception&e){std::cerr<<e.what()<<"\n";return 1;}}

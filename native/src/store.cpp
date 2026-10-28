@@ -1,5 +1,6 @@
 #include "core.hpp"
 #include "windows_files.hpp"
+#include "file.hpp"
 #include <algorithm>
 #include <cctype>
 #include <ctime>
@@ -28,11 +29,18 @@ CREATE INDEX IF NOT EXISTS items_chat_time ON items(chat_id,sent_at,ordinal,id);
 CREATE TABLE IF NOT EXISTS blobs(id TEXT PRIMARY KEY,path TEXT UNIQUE NOT NULL,sha256 TEXT NOT NULL,size INTEGER NOT NULL CHECK(size>=0));
 CREATE TABLE IF NOT EXISTS attachments(id TEXT PRIMARY KEY,chat_id TEXT NOT NULL REFERENCES chats(id),source_id TEXT NOT NULL,variant TEXT NOT NULL,version TEXT NOT NULL,item_id TEXT NOT NULL REFERENCES items(id),name TEXT NOT NULL,kind TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('pending','saved','preview','unavailable','failed')),blob_id TEXT REFERENCES blobs(id),expected_size INTEGER,expected_hash TEXT,reason TEXT NOT NULL DEFAULT '',saved_before INTEGER NOT NULL DEFAULT 0,UNIQUE(chat_id,item_id,source_id,variant,version));
 CREATE INDEX IF NOT EXISTS attachments_item ON attachments(item_id);
-CREATE TABLE IF NOT EXISTS jobs(id INTEGER PRIMARY KEY,chat_id TEXT NOT NULL REFERENCES chats(id),status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,coverage TEXT NOT NULL DEFAULT 'unknown',counts TEXT NOT NULL DEFAULT '{}');
+CREATE TABLE IF NOT EXISTS jobs(id INTEGER PRIMARY KEY,chat_id TEXT NOT NULL REFERENCES chats(id),status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,coverage TEXT NOT NULL DEFAULT 'unknown',counts TEXT NOT NULL DEFAULT '{}',options TEXT NOT NULL DEFAULT '{}');
 CREATE INDEX IF NOT EXISTS jobs_chat ON jobs(chat_id,id);
+CREATE TABLE IF NOT EXISTS capture_state(chat_id TEXT PRIMARY KEY REFERENCES chats(id),job_id INTEGER NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT,coverage TEXT NOT NULL DEFAULT 'unknown',counts TEXT NOT NULL DEFAULT '{}',options TEXT NOT NULL DEFAULT '{}');
 CREATE TABLE IF NOT EXISTS issues(id INTEGER PRIMARY KEY,chat_id TEXT REFERENCES chats(id),code TEXT NOT NULL,detail TEXT NOT NULL,created_at TEXT NOT NULL);
 )SQL";
-static fs::path checkedDb(const fs::path&p)try{auto path=within(p,"archive.sqlite3");if(fs::exists(path)){Db check(path,false);auto id=check.rows("PRAGMA application_id")[0].begin().value().get<int>();auto version=check.rows("PRAGMA user_version")[0].begin().value().get<int>();if(id!=0x4c564c54||version!=1)throw Error("這份資料不是可辨識的收藏，未修改原檔。");}return path;}catch(const fs::filesystem_error&){throw Error("無法確認收藏資料庫的位置或存取權限，未繼續開啟收藏。");}
+int archiveSchemaVersion(const fs::path&p)try{
+ auto path=within(p,"archive.sqlite3");if(!fs::exists(path))return 0;
+ Db check(path,false);auto app=check.rows("PRAGMA application_id"),version=check.rows("PRAGMA user_version");
+ if(app.size()!=1||version.size()!=1||app[0].begin().value()!=0x4c564c54)throw Error("這份資料不是可辨識的收藏，未修改原檔。");
+ auto value=version[0].begin().value();if(value!=1&&value!=2)throw Error("這份收藏格式尚不支援，未修改原檔。");return value.get<int>();
+}catch(const fs::filesystem_error&){throw Error("無法確認收藏資料庫的位置或存取權限，未繼續開啟收藏。");}
+static fs::path checkedDb(const fs::path&p,bool allowUpgrade){if(archiveSchemaVersion(p)==1&&!allowUpgrade)throw Error("這份舊版收藏需要先確認升級；升級前會保留資料庫副本，舊版程式將無法管理新版收藏。");return within(p,"archive.sqlite3");}
 static fs::path storageRoot(const fs::path&given,Tick tick)try{if(tick)tick();auto p=fs::absolute(given).lexically_normal();for(auto node=p;!node.empty();){if(tick)tick();if(fs::exists(node/".git"))throw Error("收藏請放在原始碼以外的私人資料夾，避免不小心公開。");auto parent=node.parent_path();if(parent==node)break;node=parent;}auto result=privateDir(p);
 #ifdef _WIN32
 requirePrivateDirectory(result);
@@ -40,7 +48,39 @@ requirePrivateDirectory(result);
 for(const auto&entry:fs::recursive_directory_iterator(result)){if(tick)tick();noLinks(entry.path());requirePrivateDirectory(entry.path());}
 #endif
 return result;}catch(const fs::filesystem_error&){throw Error("無法完整檢查收藏資料夾，請確認所有子資料夾均可存取；未略過無法檢查的項目。");}
-Store::Store(const fs::path&p,Tick tick):lock(storageRoot(p,tick)),root(fs::absolute(p).lexically_normal()),db(checkedDb(root)){db.execute("PRAGMA foreign_keys=ON");if(db.rows("PRAGMA foreign_keys")[0].begin().value()!=1)throw Error("資料關聯檢查無法啟用。");db.execute("PRAGMA journal_mode=WAL");db.execute("PRAGMA synchronous=FULL");db.exec(schema);db.execute("PRAGMA application_id=1280724052");db.execute("PRAGMA user_version=1");db.execute("UPDATE jobs SET status='interrupted',finished_at=? WHERE status='running'",{now()});}
+Store::Store(const fs::path&p,Tick tick,bool allowUpgrade):lock(storageRoot(p,tick)),root(fs::absolute(p).lexically_normal()),db(checkedDb(root,allowUpgrade)){
+ const auto version=db.rows("PRAGMA user_version")[0].begin().value().get<int>();
+ if(version==1){
+  // A fresh private file is owned exclusively before SQLite writes the snapshot.
+  auto snapshot=within(root,"before-format2-"+sha(now()+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,24)+".sqlite3");
+  {ExclusiveFile owned(snapshot);owned.sync();}db.backup(snapshot,tick);
+  {Db saved(snapshot,false);if(saved.rows("PRAGMA user_version")[0].begin().value()!=1||saved.rows("PRAGMA integrity_check")[0].begin().value()!="ok")throw Error("升級前的資料庫副本未通過檢查，收藏尚未升級。");}
+  upgradeSnapshot=snapshot;
+ }
+ if(tick)tick();db.execute("PRAGMA foreign_keys=ON");if(db.rows("PRAGMA foreign_keys")[0].begin().value()!=1)throw Error("資料關聯檢查無法啟用。");db.execute("PRAGMA journal_mode=WAL");db.execute("PRAGMA synchronous=FULL");
+ db.transaction([&]{
+  db.exec(schema);bool hasOptions=false;for(auto&column:db.rows("PRAGMA table_info(jobs)"))if(column["name"]=="options")hasOptions=true;
+  if(!hasOptions)db.execute("ALTER TABLE jobs ADD COLUMN options TEXT NOT NULL DEFAULT '{}'");
+  db.execute("UPDATE jobs SET status='interrupted',finished_at=? WHERE status='running'",{now()});
+  db.execute("UPDATE capture_state SET status='interrupted',finished_at=? WHERE status='running'",{now()});
+  db.execute("INSERT OR IGNORE INTO capture_state(chat_id,job_id,status,started_at,finished_at,coverage,counts,options) SELECT j.chat_id,j.id,j.status,j.started_at,j.finished_at,j.coverage,j.counts,j.options FROM jobs j WHERE j.id=(SELECT max(k.id) FROM jobs k WHERE k.chat_id=j.chat_id)");
+  db.execute("PRAGMA application_id=1280724052");db.execute("PRAGMA user_version=2");
+ });
+}
+J validatedCaptureOptions(const J&raw){try{
+ if(!raw.is_string()||raw.get_ref<const std::string&>().size()>16384)return nullptr;auto o=J::parse(raw.get<std::string>());
+ if(!o.is_object()||o.value("version",0)!=1||!o.contains("kinds")||!o["kinds"].is_array()||o["kinds"].empty()||o["kinds"].size()>allKinds.size())return nullptr;
+ std::set<std::string>unique;for(auto&kind:o["kinds"]){if(!kind.is_string()||!allKinds.count(kind.get<std::string>())||!unique.insert(kind.get<std::string>()).second)return nullptr;}
+ for(auto key:{"since","until","message_mode"})if(!o.contains(key)||!o[key].is_string())return nullptr;
+ auto mode=o["message_mode"].get<std::string>();if(mode!="update"&&mode!="skip_text")return nullptr;
+ auto since=o["since"].get<std::string>(),until=o["until"].get<std::string>();if((!since.empty()&&normalizeTime(since)!=since)||(!until.empty()&&normalizeTime(until)!=until)||(!since.empty()&&!until.empty()&&since>=until))return nullptr;
+ return {{"version",1},{"kinds",o["kinds"]},{"since",since},{"until",until},{"message_mode",mode}};
+ }catch(...){return nullptr;}}
+static J historyCounts(const J&raw){J result=J::object();try{auto values=J::parse(raw.get<std::string>());for(auto name:{"items","reused","downloaded","failed","unavailable","retained_messages","omitted_messages"})if(values.contains(name)&&values[name].is_number_integer()&&values[name].get<int64_t>()>=0)result[name]=values[name];}catch(...){}return result;}
+J Store::history(size_t limit,size_t offset){if(limit==0||limit>200||offset>static_cast<size_t>(INT64_MAX))throw Error("歷史紀錄分頁範圍不正確。");auto rows=db.rows("SELECT j.*,c.account,c.source_id,c.title AS chat_title,c.kind AS chat_kind,c.parent_source_id FROM jobs j JOIN chats c ON c.id=j.chat_id ORDER BY j.id DESC LIMIT ? OFFSET ?",{limit,offset});for(auto&row:rows){row["options"]=validatedCaptureOptions(row["options"]);row["counts"]=historyCounts(row["counts"]);}return rows;}
+int64_t Store::historyCount(){return db.rows("SELECT count(*) AS n FROM jobs")[0]["n"].get<int64_t>();}
+void Store::deleteHistory(int64_t id){if(id<=0)throw Error("請先選擇一筆歷史紀錄。");db.transaction([&]{auto found=db.rows("SELECT status FROM jobs WHERE id=?",{id});if(found.size()!=1)throw Error("這筆歷史紀錄已不存在，請重新整理。");if(found[0]["status"]=="running")throw Error("整理中的紀錄不能刪除，請先停止並等待完成。");db.execute("DELETE FROM jobs WHERE id=?",{id});});}
+void Store::recordCaptureState(int64_t id){db.execute("INSERT OR REPLACE INTO capture_state(chat_id,job_id,status,started_at,finished_at,coverage,counts,options) SELECT chat_id,id,status,started_at,finished_at,coverage,counts,options FROM jobs WHERE id=?",{id});}
 std::string Store::putChat(const std::string&account,const J&c){validateChat(c);if(account.empty())throw Error("缺少帳號識別。");auto sid=str(c,"source_id"),kind=str(c,"kind","group"),parent=str(c,"parent_source_id"),cid=key({"chat",account,sid});if(!parent.empty()){auto found=db.rows("SELECT kind FROM chats WHERE account=? AND source_id=?",{account,parent});if(parent==sid||kind!="subchat"||found.size()!=1||found[0]["kind"]!="community")throw Error("子聊天室缺少有效的所屬社群。");}if(kind!="community"&&!db.rows("SELECT 1 FROM chats WHERE account=? AND parent_source_id=?",{account,sid}).empty())throw Error("所屬社群類型改變，舊關聯仍會保留。");db.execute("INSERT OR IGNORE INTO chats VALUES(?,?,?,?,?,?)",{cid,account,sid,str(c,"title"),kind,nullstr(parent)});db.execute("UPDATE chats SET title=?,kind=?,parent_source_id=? WHERE id=?",{str(c,"title"),kind,nullstr(parent),cid});return cid;}
 void Store::putItems(const std::string&cid,J items){std::map<std::string,J>existing,incoming;std::map<std::string,std::string>ids,reverse,parents;for(auto&r:db.rows("SELECT * FROM items WHERE chat_id=?",{cid})){auto sid=str(r,"source_id");existing[sid]=r;ids[sid]=str(r,"id");reverse[str(r,"id")]=sid;}for(auto&i:items){validateItem(i);auto sid=str(i,"source_id");if(incoming.count(sid))throw Error("來源含重複識別，未更新舊資料。");incoming[sid]=i;ids[sid]=key({"item",cid,sid});}const std::map<std::string,std::set<std::string>>allowed={{"album_item",{"album"}},{"comment",{"note","comment"}},{"message",{"thread"}},{"thread",{"message"}}};for(auto&[sid,r]:existing){auto pid=str(r,"parent_id");if(!pid.empty()&&!reverse.count(pid))throw Error("現有內容的所屬來源需要檢查。");parents[sid]=reverse[pid];}for(auto&[sid,i]:incoming){auto kind=str(i,"kind"),parent=str(i,"parent_source_id");if(existing.count(sid)&&str(existing[sid],"kind")!=kind)throw Error("相同來源的內容類型改變，未覆寫舊資料。");if((kind=="album_item"||kind=="comment")&&parent.empty())throw Error("圖片或留言缺少所屬內容。");if(!parent.empty()){if(!ids.count(parent)||parent==sid)throw Error("來源缺少有效的上層內容。");auto p=incoming.count(parent)?incoming[parent]:existing[parent];auto a=allowed.find(kind);if(a==allowed.end()||!a->second.count(str(p,"kind")))throw Error("內容與所屬來源類型不符。");}parents[sid]=parent;}std::set<std::string>done;for(auto&[sid,_]:parents){std::set<std::string>seen;auto node=sid;while(!node.empty()&&!done.count(node)){if(!seen.insert(node).second)throw Error("來源關聯形成循環，未更新舊資料。");node=parents[node];}done.insert(seen.begin(),seen.end());}for(auto&[sid,i]:incoming){bool hidden=i["state"]=="recalled"||i["state"]=="deleted";auto iid=ids[sid],parent=str(i,"parent_source_id");J args={iid,cid,sid,i["kind"],parent.empty()?J(nullptr):J(ids[parent]),i["reply_source_id"],hidden?J(""):i["text"],hidden?J(""):i["title"],i["sender_id"],i["sender_name"],i["sent_at"],i["state"],i["ordinal"],hidden?std::string("{}"):i["metadata"].dump(),now()};db.execute("INSERT OR IGNORE INTO items VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",args);J update=J::array();for(size_t n=3;n<args.size();n++)update.push_back(args[n]);update.push_back(iid);db.execute("UPDATE items SET kind=?,parent_id=?,reply_source_id=?,text=?,title=?,sender_id=?,sender_name=?,sent_at=?,state=?,ordinal=?,metadata=?,seen_at=? WHERE id=?",update);if(hidden)db.execute("UPDATE attachments SET saved_before=1 WHERE item_id=?",{iid});}}
 std::string Store::putAttachment(const std::string&cid,J a){validateAttachment(a);auto iid=key({"item",cid,str(a,"item_source_id")});if(db.rows("SELECT 1 FROM items WHERE id=? AND chat_id=?",{iid,cid}).empty())throw Error("附件找不到所屬內容。");auto aid=key({"attachment",cid,iid,str(a,"source_id"),str(a,"variant"),str(a,"version")});auto old=db.rows("SELECT * FROM attachments WHERE id=?",{aid});if(!old.empty()){auto&r=old[0];if(r["kind"]!=a["kind"]||(!r["expected_size"].is_null()&&!a["expected_size"].is_null()&&r["expected_size"]!=a["expected_size"])||(!r["expected_hash"].is_null()&&!a["expected_sha256"].is_null()&&r["expected_hash"]!=a["expected_sha256"]))throw Error("同一附件版本的資訊改變，舊副本已保留。");}db.execute("INSERT OR IGNORE INTO attachments(id,chat_id,source_id,variant,version,item_id,name,kind,status,expected_size,expected_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?)",{aid,cid,a["source_id"],a["variant"],a["version"],iid,a["name"],a["kind"],"pending",a["expected_size"],a["expected_sha256"]});db.execute("UPDATE attachments SET name=?,expected_size=coalesce(?,expected_size),expected_hash=coalesce(?,expected_hash) WHERE id=?",{a["name"],a["expected_size"],a["expected_sha256"],aid});db.execute("UPDATE attachments SET saved_before=1 WHERE chat_id=? AND item_id=? AND source_id=? AND variant=? AND id<>?",{cid,iid,a["source_id"],a["variant"],aid});return aid;}
@@ -48,6 +88,16 @@ bool Store::reusable(const std::string&aid,Tick tick){auto rows=db.rows("SELECT 
 bool Store::reuseKnown(const std::string&aid,Tick tick){auto rows=db.rows("SELECT * FROM attachments WHERE id=?",{aid});if(rows.empty()||rows[0]["expected_hash"].is_null())return false;auto r=rows[0];auto hash=str(r,"expected_hash");auto blobs=db.rows("SELECT * FROM blobs WHERE sha256=?",{hash});std::vector<std::string>paths;if(!blobs.empty())paths.push_back(str(blobs[0],"path"));else for(auto ext:{"png","jpg","gif","webp","wav","ogg","mp3","mp4","bin"})paths.push_back("assets/"+hash.substr(0,2)+"/"+hash+"."+ext);for(auto&rel:paths)try{auto d=digest(within(root,rel),tick);if(d.hash==hash&&(r["expected_size"].is_null()||d.size==r["expected_size"].get<uint64_t>())){saveBlob(aid,rel,d,r["variant"]=="thumbnail",tick);return true;}}catch(const Cancelled&){throw;}catch(...){}return false;}
 void Store::saveBlob(const std::string&aid,const std::string&rel,const Digest&d,bool preview,Tick tick){auto rows=db.rows("SELECT * FROM attachments WHERE id=?",{aid});if(rows.empty())throw Error("檔案缺少所屬附件。");auto&a=rows[0];if((!a["expected_size"].is_null()&&d.size!=a["expected_size"].get<uint64_t>())||(!a["expected_hash"].is_null()&&d.hash!=str(a,"expected_hash")))throw Error("附件與來源不符，未列為完整副本。");auto actual=digest(within(root,rel),tick);if(actual.hash!=d.hash||actual.size!=d.size)throw Error("附件副本檢查未通過。");auto bid=key({"blob",d.hash});auto old=db.rows("SELECT path FROM blobs WHERE id=?",{bid});if(!old.empty()&&old[0]["path"]!=rel)throw Error("相同內容的位置不一致。");db.execute("INSERT OR IGNORE INTO blobs VALUES(?,?,?,?)",{bid,rel,d.hash,d.size});db.execute("UPDATE attachments SET blob_id=?,status=?,reason='' WHERE id=?",{bid,preview?"preview":"saved",aid});}
 J Store::summary(){J a=J::object();for(auto&r:db.rows("SELECT status,count(*) AS n FROM attachments GROUP BY status"))a[str(r,"status")]=r["n"];return {{"database_protections",db.protectionStatus()},{"chats",db.rows("SELECT count(*) AS n FROM chats")[0]["n"]},{"items",db.rows("SELECT count(*) AS n FROM items")[0]["n"]},{"attachments",a},{"issues",db.rows("SELECT count(*) AS n FROM attachments WHERE status<>'saved'")[0]["n"]}};}
+static bool validHistoryRow(const J&r){try{
+ auto identifier=r.contains("job_id")?r["job_id"]:r["id"];if(!identifier.is_number_integer()||identifier<=0||identifier>INT64_MAX)return false;
+ if(!r["status"].is_string()||!std::set<std::string>{"running","complete","complete_with_issues","stopped","failed","interrupted"}.count(r["status"].get<std::string>()))return false;
+ if(!r["coverage"].is_string()||!std::set<std::string>{"local_only","visible_only","source_range","unknown"}.count(r["coverage"].get<std::string>()))return false;
+ for(auto name:{"started_at","finished_at"})if(!r[name].is_null()&&(!r[name].is_string()||normalizeTime(r[name].get<std::string>()).empty()))return false;
+ if(!r["counts"].is_string()||r["counts"].get_ref<const std::string&>().size()>16384)return false;
+ auto counts=J::parse(r["counts"].get<std::string>());if(!counts.is_object())return false;for(auto&value:counts)if(!value.is_number_integer()||value<0||value>INT64_MAX)return false;
+ if(!r["options"].is_string())return false;auto options=r["options"].get<std::string>();if(J::parse(options)!=J::object()&&validatedCaptureOptions(r["options"]).is_null())return false;
+ return true;
+ }catch(...){return false;}}
 J Store::identityProblems(Tick tick){
  struct Spec{std::string table;std::vector<std::string>required,optional,identity;};
  const std::vector<Spec>specs={
@@ -55,13 +105,14 @@ J Store::identityProblems(Tick tick){
   {"items",{"id","chat_id"},{"parent_id"},{"item","chat_id","source_id"}},
   {"attachments",{"id","chat_id","item_id"},{"blob_id","expected_hash"},{"attachment","chat_id","item_id","source_id","variant","version"}},
   {"blobs",{"id","sha256"},{},{"blob","sha256"}},
-  {"jobs",{"chat_id"},{},{}},{"issues",{},{"chat_id"},{}}
+  {"jobs",{"chat_id"},{},{}},{"capture_state",{"chat_id"},{},{}},{"issues",{},{"chat_id"},{}}
  };
  J result=J::array();
  for(const auto&spec:specs)for(const auto&r:db.rows("SELECT * FROM "+spec.table)){
   if(tick)tick();bool valid=true;
   for(const auto&name:spec.required)if(!r[name].is_string()||!canonicalHash(r[name].get<std::string>()))valid=false;
   for(const auto&name:spec.optional)if(!r[name].is_null()&&(!r[name].is_string()||!canonicalHash(r[name].get<std::string>())))valid=false;
+  if(valid&&(spec.table=="jobs"||spec.table=="capture_state"))valid=validHistoryRow(r);
   if(valid&&!spec.identity.empty()){
    std::vector<std::string>values{spec.identity[0]};
    for(size_t i=1;i<spec.identity.size();i++){const auto&v=r[spec.identity[i]];if(!v.is_string()){valid=false;break;}values.push_back(v.get<std::string>());}

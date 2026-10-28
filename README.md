@@ -2,11 +2,11 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.4｜Windows x64 可攜預覽版**
+**0.3.1-alpha.5｜Windows x64 可攜預覽版**
 
 > 本版套件僅由通過驗收的 CI 產物發布；是否已可下載，請以本版 Release 頁的實際狀態為準。
 
-[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.4/ChatAtlas-0.3.1-alpha.4-Windows-x64-candidate.zip) · [alpha.4 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.4)
+[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.5/ChatAtlas-0.3.1-alpha.5-Windows-x64-candidate.zip) · [alpha.5 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.5)
 
 > **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
 > 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
@@ -47,7 +47,7 @@
 
 ## 畫面預覽
 
-以下是 alpha.4 的實際 CI 執行畫面，原生圖來自實際封裝的 EXE，不是設計稿，也不是替舊圖改標版本。閱讀資料全部是人工範例。
+以下暫留前版 alpha.4 的實際 CI 執行畫面（不是 alpha.5 新功能畫面），原生圖來自實際封裝的 EXE，不是設計稿，也不是替舊圖改標版本。閱讀資料全部是人工範例。
 
 ### Windows 原生程式
 
@@ -81,23 +81,22 @@
 
 </details>
 
-## alpha.4 更新範圍
+## alpha.5 更新範圍
 
-- **高 DPI 與小工作區：** 依 DPI 重建字型、控制項與視窗尺寸，處理 DPI 變更；內容放不下時可捲動，鍵盤焦點會保持可見。跨螢幕與不同縮放仍需對實際組合驗收。
-- **更清楚的保存位置流程：** 保留 EXE 旁的資料位置。新收藏可在選定父位置下經確認建立私人子資料夾，不會默默修改原資料夾 ACL；不支援的磁碟、連結或同步標記會清楚拒絕。
-- **實際目錄身分：** 可攜相對位置及 ZIP 不得放在收藏內的規則，改用經驗證的目錄身分判斷，補大小寫、短檔名及可用時的 subst 測試。
-- **有界的另存清理：** 關閉已追蹤的覆寫確認窗後，短時間等待同一母視窗安全回焦；不接受覆寫、不搶焦點、不關閉未知視窗。逾時提示使用者手動取消。
-- **資料庫與中止提示：** 查回 SQLite 額外保護能力，舊系統不支援時明確提示；收藏啟動掃描可檢查取消，並保留每個項目的權限與檔案控制代碼驗證。
+- **採集紀錄：** 查看已結束或中斷的整理工作，保留或刪除歷史列。刪紀錄不刪聊天與附件，也不清除去重索引；可套用舊選項後再自行開始。
+- **對話與附件分開選：** 可更新同識別的對話，或不保存新對話文字；後者仍保留附件必要的最小關聯，離線頁標示「未保存對話文字」。再次整理會校驗既有完整附件，而非只憑檔名跳過。
+- **匯入完整備份：** 將已解壓、含資料庫的完整備份複製成新的私人收藏，不更動來源內容或權限；閱讀頁使用本版可信資源重建。包內 HTML-only 人工範例不是可續抓的資料庫備份。
+- **取消、停止與狀態：** 取消建立收藏不再提前保存偏好；停止採集不再自動接著重建整份網頁。離線頁顯示已知採集範圍、狀態和待補原因，不把「完成」當成全部歷史都已保存。
 
-原有 ZIP64、離線地圖與檔案下載保護繼續保留。沒有因外部報告而放寬雲端同步路徑或新增任意 4 GiB ZIP 上限，也沒有自動修改既有資料夾 ACL。
+舊版收藏管理前會明確詢問格式升級，先在私人收藏內保存獨立資料庫還原副本，再以交易更新格式。升級後 alpha.4 與更早版本不能管理這份收藏；副本不等於附件的第二份備份，升級前仍請保留完整原始副本。
 
-完整查證差異與限制見 [alpha.4 修正紀錄](docs/ALPHA4_REVIEW.md)；[alpha.3 紀錄](docs/ALPHA3_REVIEW.md)保留作歷史參考。這不是紅隊或相容性認證。
+完整 ZIP 仍要求附件已完整保存；本輪沒有加入部分備份格式。真實 LINE 版面設定及採集仍未驗收，不能把人工測試的去重、重試或歷史功能視為真實 LINE 已可用。
+
+前版報告經核對後，只有取消偏好與完整備份匯入缺口需處理；「預建 Collections」及「每個 ZIP 成員都刷磁碟」不符合 alpha.4 發布原碼，沒有為此修改。詳見 [alpha.5 核對與限制](docs/ALPHA5_REVIEW.md)；[alpha.4 紀錄](docs/ALPHA4_REVIEW.md)保留作歷史參考。
 
 ## 驗證狀態
 
-alpha.4 的程式 commit `6a15c4b02282573a699871a79cb3c2ebe29d7cf5` 已通過[來源與介面驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659395672)及[實際封裝 EXE 驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659516136)，共六個工作成功，亦為上方實際圖片的來源。包含 58 項同程序 Win32 合成 DPI／資料夾流程檢查、實際 Windows 路徑別名驗證與原生產生器的瀏覽器閱讀回歸。合成 DPI 不等於實體多螢幕測試。
-
-文件與四張截圖整合後，最終發布 commit 仍須重新建置與驗收。其 Windows 執行結果、產物 SHA-256 與來源證明，以 alpha.4 Release 的精確紀錄為準。
+alpha.5 的最終來源、原生 Windows 執行、瀏覽器操作與新截圖仍待本輪 CI 驗收；不可沿用 alpha.4 的成功紀錄。文件與圖片整合後仍須重新建置同一份最終來源。
 
 本版應核對的項目包括：
 
@@ -106,17 +105,17 @@ alpha.4 的程式 commit `6a15c4b02282573a699871a79cb3c2ebe29d7cf5` 已通過[�
 - 人工 SQLite 與下載器回歸，以及離線 UI 的正常操作與 CSP 外部資源拒絕。
 - 發布四個檔案的原始 CI 位元組、`SHA256SUMS.txt` 與 GitHub 建置來源證明。
 
-最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.4) 的精確來源與驗證紀錄為準；不沿用任何前版的 CI 或雜湊。
+最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.5) 的精確來源與驗證紀錄為準；不沿用任何前版的 CI 或雜湊。
 
 <details>
 <summary>下載後如何核對來源</summary>
 
-請使用 **alpha.4 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
+請使用 **alpha.5 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
 
 發布完成且有可驗證的來源證明後，使用 GitHub CLI 的開發者可執行：
 
 ```sh
-gh attestation verify ChatAtlas-0.3.1-alpha.4-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
+gh attestation verify ChatAtlas-0.3.1-alpha.5-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
 ```
 
 建置來源證明需核對儲存庫、workflow、來源 commit 及檔案雜湊。它不是 Authenticode 簽章、防毒認證或安全認證。
@@ -164,11 +163,11 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.4 修正紀錄](docs/ALPHA4_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.5 核對紀錄](docs/ALPHA5_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
-alpha.1 至 alpha.3 已發布的 Release、tag 與檔案保持不變。alpha.4 的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
+alpha.1 至 alpha.4 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
 
 </details>
 

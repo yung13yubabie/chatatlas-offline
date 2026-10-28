@@ -16,6 +16,8 @@ jobs:
       - run: node tools/check_public_tree.mjs
       - run: node tools/package_test.mjs
       - run: node tools/download_contract_test.cjs
+      - run: node tools/capture_presentation_test.cjs
+      - run: node native/tests/bridge_timing_contract.cjs
       - run: node native/tests/windows_bridge_contract.cjs
       - run: node native/tests/app_flow_contract.cjs
       - run: node native/tests/ui_dpi_contract.cjs
@@ -66,6 +68,8 @@ jobs:
       - run: node tools/check_public_tree.mjs
       - run: node tools/package_test.mjs
       - run: node tools/download_contract_test.cjs
+      - run: node tools/capture_presentation_test.cjs
+      - run: node native/tests/bridge_timing_contract.cjs
       - run: node native/tests/windows_bridge_contract.cjs
       - run: node native/tests/app_flow_contract.cjs
       - run: node native/tests/ui_dpi_contract.cjs

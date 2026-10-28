@@ -19,7 +19,7 @@ const compiler=JSON.parse(run(zig,['env'],{encoding:'utf8',stdio:'pipe'}).stdout
 fs.mkdirSync(path.join(root,'out'),{recursive:true});
 run(process.execPath,['bundle.mjs']);
 run(zig,['rc','/i','src','/i',path.join(compiler.lib_dir,'libc/include/any-windows-any'),'/fo','out/app.res','src/app.rc']);
-const sources=['app','platform','database','store','archive','zip','demo','bundle','windows_source'].map(name=>'src/'+name+'.cpp');
+const sources=['app','platform','database','store','archive','zip','demo','bundle','windows_source','import'].map(name=>'src/'+name+'.cpp');
 run(zig,['c++','-target','x86_64-windows-gnu','-std=c++20','-O1','-g0','-fstack-protector-strong','-DUNICODE','-D_UNICODE','-municode','-Wl,--subsystem,windows','-Isrc','-Iinclude','-Ivendor',...sources,'out/app.res','-lcomctl32','-lole32','-lshell32','-luuid','-lcomdlg32','-lgdi32','-ladvapi32','-o','out/ChatAtlas.exe']);
 
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');

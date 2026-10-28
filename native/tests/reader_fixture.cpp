@@ -15,16 +15,17 @@ int main(int argc,char**argv){try{
  constexpr size_t chunk=768*1024;
  std::string payload(chunk*2,'\0');for(size_t i=0;i<payload.size();++i)payload[i]=static_cast<char>(i%256);payload+="END";
  J result=J::array();
- for(const auto& fixture:std::vector<std::pair<std::string,std::string>>{{"多段下載範例",payload},{"空檔案範例",""}}){
-  const auto&name=fixture.first;const auto&bytes=fixture.second;const auto hash=sha(bytes);
+ for(const auto& fixture:std::vector<std::pair<std::string,std::string>>{{"多段下載範例",payload},{"空檔案範例",""},{"未保存文字附件範例","artificial-omitted-text-attachment"}}){
+  const auto&name=fixture.first;const auto&bytes=fixture.second;const auto hash=sha(bytes);const bool omitted=name=="未保存文字附件範例";
   const auto relative="assets/"+hash.substr(0,2)+"/"+hash+".bin";
   atomicText(within(root,relative),bytes);
   store.db.transaction([&]{
-   store.putItems(cid,J::array({{{"source_id",name},{"kind","message"},{"text",name}}}));
+   store.putItems(cid,J::array({{{"source_id",name},{"kind","message"},{"text",omitted?"":name},{"metadata",omitted?J{{"content_omitted",true}}:J::object()}}}));
    const auto aid=store.putAttachment(cid,{{"source_id",name},{"item_source_id",name},{"name",name+".bin"},{"expected_size",bytes.size()},{"expected_sha256",hash}});
    store.saveBlob(aid,relative,digest(within(root,relative)));
+   if(omitted){const auto pending=store.putAttachment(cid,{{"source_id","artificial-pending"},{"item_source_id",name},{"name","待補範例.bin"}});store.db.execute("UPDATE attachments SET status='failed',reason=? WHERE id=?",{"人工來源暫時無法提供",pending});}
   });
-  result.push_back({{"name",name},{"size",bytes.size()},{"sha256",hash}});
+  result.push_back({{"name",name},{"size",bytes.size()},{"sha256",hash},{"item_id",key({"item",cid,name})},{"content_omitted",omitted}});
  }
  exportHtml(store);
  for(auto&item:result){const auto rows=store.db.rows("SELECT * FROM blobs WHERE sha256=?",{item["sha256"]});item["parts"]=downloadParts(store,rows.at(0))["parts"].size();}

@@ -1,6 +1,6 @@
 CXX ?= g++
 CXXFLAGS = -std=c++20 -O0 -g -DJSON_DIAGNOSTICS=1 -Isrc -Iinclude -Ivendor
-SRC = platform database store archive zip demo bundle
+SRC = platform database store archive zip demo bundle import
 OBJ = $(addprefix build/,$(addsuffix .o,$(SRC)))
 all: build/core-test
 build/%.o: src/%.cpp $(wildcard src/*.hpp)
@@ -16,11 +16,14 @@ build/database-contract-test: build/database.o build/platform.o tests/database_c
 	$(CXX) $(CXXFLAGS) tests/database_contract_test.cpp build/database.o build/platform.o -ldl -o $@
 build/path-identity-test: build/platform.o tests/path_identity_test.cpp
 	$(CXX) $(CXXFLAGS) tests/path_identity_test.cpp build/platform.o -o $@
-test: build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test
+test: build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+	./build/bridge-timing-test
 	./build/core-test
 	./build/zip-bounds-test
 	$(MAKE) test-database
 	$(MAKE) test-path-identity
+	$(MAKE) test-import
+	$(MAKE) test-capture-history
 .PHONY: test test-database test-path-identity
 test-database: build/database-contract-test
 	@d=$$(mktemp -d) || exit 1; ./build/database-contract-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
@@ -30,3 +33,17 @@ test-path-identity: build/path-identity-test
 
 build/reader-fixture: $(OBJ) tests/reader_fixture.cpp
 	$(CXX) $(CXXFLAGS) tests/reader_fixture.cpp $(OBJ) -ldl -o $@
+
+build/capture-history-test: $(OBJ) tests/capture_history_test.cpp
+	$(CXX) $(CXXFLAGS) tests/capture_history_test.cpp $(OBJ) -ldl -o $@
+build/import-test: $(OBJ) tests/import_test.cpp
+	$(CXX) $(CXXFLAGS) tests/import_test.cpp $(OBJ) -ldl -o $@
+.PHONY: test-capture-history test-import
+test-capture-history: build/capture-history-test
+	@d=$$(mktemp -d) || exit 1; ./build/capture-history-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+test-import: build/import-test
+	@d=$$(mktemp -d) || exit 1; ./build/import-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+build/bridge-timing-test: tests/bridge_timing_test.cpp src/bridge_timing.hpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/bridge_timing_test.cpp -o $@

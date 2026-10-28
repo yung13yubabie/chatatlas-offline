@@ -21,6 +21,8 @@ jobs:
       - run: node tools/check_public_tree.mjs
       - run: node tools/package_test.mjs
       - run: node tools/download_contract_test.cjs
+      - run: node tools/capture_presentation_test.cjs
+      - run: node native/tests/bridge_timing_contract.cjs
       - run: make -C native test build/atlas-cli
       - run: node tools/graph_model_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs

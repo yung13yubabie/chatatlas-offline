@@ -1,3 +1,7 @@
+# 歷史功能驗收與後續增補
+
+本文件原有檢查表記錄早期功能審查，不是 alpha.5 的完整驗收結果。後續版本以 README、對應 Release 及 [alpha.5 修正紀錄](ALPHA5_REVIEW.md) 為準；不得沿用早期通過字樣替代新版本實測。
+
 # Native application functional acceptance
 
 Scope: alpha.2 native Windows controller (`native/src/app.cpp`). This is a bounded correctness and user-flow review, not a security certification or a claim that real LINE capture is complete.
@@ -44,3 +48,7 @@ Locally executed for this review:
 The contract tests inspect source invariants; they are not a replacement for real UI execution. Windows hosted-runner synthetic checks and isolated-runtime smoke tests must be reported using their exact final commit. A normal hosted runner is not a freshly installed Windows machine. Full keyboard behavior, focus order at different DPI settings, small-window layout and native dialog interaction still require real Windows GUI verification.
 
 No Python, runtime package installer, WebView runtime or remote UI dependency was added by this review. Existing privacy, source-directory and archive-integrity guards were not removed to make tests pass.
+
+## alpha.5 本輪新增門檻
+
+新增採集紀錄保留／刪除、同帳號聊天室選項再套用、文字省略／更新、缺檔與損毀補存、完整備份匯入、取消偏好不提交、暫停有效時鐘及停止不自動重建的回歸測試。離線頁必須呈現部分／未知來源範圍與待補原因。真實 LINE 完整採集及來源過期訊號仍未驗證；歷史清單或人工重抓測試不能當成真實來源已整合。

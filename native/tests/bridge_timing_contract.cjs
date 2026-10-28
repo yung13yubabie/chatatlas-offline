@@ -1,0 +1,15 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const source=fs.readFileSync(path.join(__dirname,'../src/windows_source.cpp'),'utf8');
+const call=source.slice(source.indexOf('J Bridge::call('),source.indexOf('static std::string value('));
+assert(call.includes('BridgeRequestGate gate('),'bridge uses tested request gate');
+assert(call.indexOf('gate.beforeSend()')<call.indexOf('WriteFile('),'pause is checked before sending');
+assert(call.indexOf('gate.afterSend()')>call.indexOf('WriteFile('),'deadline begins after sending');
+const receive=call.slice(call.indexOf("while(buffered.find('\\n')"),call.indexOf("auto end=buffered.find('\\n')"));
+assert(receive.includes('gate.withinDeadline()'),'in-flight wait checks stop and deadline');
+assert(!receive.includes('control->check()'),'in-flight pipe drain must not block on pause');
+assert(call.includes('control&&control->stopped.load()'),'in-flight gate checks cancellation');
+assert(call.indexOf('gate.afterResponse()')>call.indexOf('buffered.erase('),'response is consumed before pausing');
+assert(call.includes('catch(...){close();throw;}'),'stop and bridge errors close the bridge');
+console.log('Bridge pause boundary wiring contracts passed (not real LINE validation).');

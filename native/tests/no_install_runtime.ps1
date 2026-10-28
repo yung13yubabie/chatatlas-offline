@@ -40,6 +40,15 @@ public static class AtlasSmokeWindow {
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect value);
+ [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+ [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
+ [DllImport("user32.dll", EntryPoint="SendMessageTimeoutW")]
+ private static extern IntPtr SendMessageTimeout(IntPtr hwnd, uint msg, IntPtr wp, IntPtr lp, uint flags, uint timeout, out UIntPtr result);
+ public static long ControlMessage(IntPtr hwnd, uint msg, long wp, long lp) {
+  UIntPtr result;
+  if (SendMessageTimeout(hwnd,msg,new IntPtr(wp),new IntPtr(lp),2,3000,out result)==IntPtr.Zero) throw new InvalidOperationException("Owned control did not respond");
+  return unchecked((long)result.ToUInt64());
+ }
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)]
@@ -119,6 +128,10 @@ public static class AtlasSmokeWindow {
    [void]$visible.Clear()
    [void][AtlasSmokeWindow]::ReadControlText($folder,0x000D,[IntPtr]$visible.Capacity,$visible)
    if ($visible.ToString() -cne $neutral) { throw 'Neutral screenshot input changed before capture' }
+   function Save-OwnedWindowCapture([string]$FileName) {
+    [uint32]$captureOwner=0
+    [void][AtlasSmokeWindow]::GetWindowThreadProcessId($p.MainWindowHandle,[ref]$captureOwner)
+    if ($captureOwner -ne $p.Id) { throw 'Capture window ownership changed' }
    $rect=New-Object 'AtlasSmokeWindow+Rect'
    if (![AtlasSmokeWindow]::GetWindowRect($p.MainWindowHandle,[ref]$rect)) { throw 'Native screenshot bounds unavailable' }
    $width=$rect.Right-$rect.Left; $height=$rect.Bottom-$rect.Top
@@ -135,11 +148,49 @@ public static class AtlasSmokeWindow {
     for($y=0;$y -lt $height;$y+=7) { for($x=0;$x -lt $width;$x+=7) { [void]$colors.Add($bitmap.GetPixel($x,$y).ToArgb()) } }
     if ($colors.Count -lt 8) { throw 'Native screenshot is blank or insufficiently rendered' }
     [void][IO.Directory]::CreateDirectory($env:ATLAS_QA)
-    $image=Join-Path $env:ATLAS_QA 'atlas-native-windows.png'
+    $image=Join-Path $env:ATLAS_QA $FileName
     $bitmap.Save($image,[Drawing.Imaging.ImageFormat]::Png)
     if ((Get-Item -LiteralPath $image).Length -lt 4096) { throw 'Native screenshot file is unexpectedly empty' }
-    Write-Output ('Captured actual ChatAtlas startup HWND: '+$width+'x'+$height+'; synthetic input path only.')
+    Write-Output ('Captured actual ChatAtlas HWND: '+$FileName+'; '+$width+'x'+$height+'; artificial data only.')
    } finally { $graphics.Dispose(); $bitmap.Dispose() }
+   }
+   Save-OwnedWindowCapture 'atlas-native-windows.png'
+   if ($portableMode) {
+   # Use the real --demo archive through its actual relative path. No runner
+   # username/path, fabricated list rows, or real LINE data enters the image.
+   if ([IO.Path]::GetFullPath((Join-Path $bin '..\archive')) -ine [IO.Path]::GetFullPath($archive)) { throw 'Synthetic archive relative path mismatch' }
+   if ([AtlasSmokeWindow]::SetControlText($folder,0x000C,[IntPtr]::Zero,'..\archive') -eq [IntPtr]::Zero) { throw 'Could not select artificial archive' }
+   $tabs=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,100)
+   $history=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,124)
+   $refresh=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,125)
+   foreach($control in @($tabs,$history,$refresh)) {
+    [uint32]$controlOwner=0
+    [void][AtlasSmokeWindow]::GetWindowThreadProcessId($control,[ref]$controlOwner)
+    if ($control -eq [IntPtr]::Zero -or $controlOwner -ne $p.Id) { throw 'History control ownership mismatch' }
+   }
+   # TCM_SETCURFOCUS on a normal tab control changes its selection and sends
+   # the real selection notification; do not forge a cross-process NMHDR.
+   [void][AtlasSmokeWindow]::ControlMessage($tabs,0x1330,3,0)
+   if ([AtlasSmokeWindow]::ControlMessage($tabs,0x130B,0,0) -ne 3 -or ![AtlasSmokeWindow]::IsWindowVisible($history)) { throw 'History tab did not activate' }
+   if (![AtlasSmokeWindow]::IsWindowVisible($refresh) -or ![AtlasSmokeWindow]::IsWindowEnabled($refresh)) { throw 'History refresh is unavailable' }
+   [void][AtlasSmokeWindow]::ControlMessage($refresh,0x00F5,0,0) # BM_CLICK
+   $deadline=[DateTime]::UtcNow.AddSeconds(30); $rowCount=0
+   do {
+    $p.Refresh()
+    if ($p.HasExited) { throw 'Native GUI exited while loading history' }
+    $rowCount=[AtlasSmokeWindow]::ControlMessage($history,0x1004,0,0) # LVM_GETITEMCOUNT, no pointers
+    if ($rowCount -gt 0 -and [AtlasSmokeWindow]::IsWindowEnabled($refresh)) { break }
+    Start-Sleep -Milliseconds 100
+   } while ([DateTime]::UtcNow -lt $deadline)
+   if ($rowCount -lt 1 -or ![AtlasSmokeWindow]::IsWindowEnabled($refresh)) { throw 'Artificial capture history did not populate before deadline' }
+   [void]$visible.Clear()
+   [void][AtlasSmokeWindow]::ReadControlText($folder,0x000D,[IntPtr]$visible.Capacity,$visible)
+   if ($visible.ToString() -cne '..\archive') { throw 'History screenshot archive input changed unexpectedly' }
+   [void][AtlasSmokeWindow]::RedrawWindow($p.MainWindowHandle,[IntPtr]::Zero,[IntPtr]::Zero,0x0185)
+   Start-Sleep -Milliseconds 500
+   Save-OwnedWindowCapture 'atlas-native-history-windows.png'
+   Write-Output ('Real packaged EXE history tab loaded '+$rowCount+' artificial capture records.')
+   }
   }
   if (!$p.CloseMainWindow()) { throw 'Native GUI refused graceful close' }
   if (!$p.WaitForExit(10000) -or $p.ExitCode -ne 0) { throw 'Native GUI did not close cleanly' }
