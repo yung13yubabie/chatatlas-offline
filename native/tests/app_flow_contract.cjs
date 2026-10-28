@@ -13,7 +13,10 @@ assert(cpp.includes('app.control->stopped=true;app.control->paused=false;EnableW
 assert(cpp.includes('if(!app.closing&&(r->message.size()>250||r->error))'),'close is not blocked by completion modal');
 const connect=cpp.slice(cpp.indexOf('startTask([profile]'),cpp.indexOf('if(id==ID_DEMO)'));
 assert(!connect.includes('app.source='),'worker never publishes source directly');
-assert(connect.indexOf('auto chats=source->chats()')<connect.indexOf('std::make_unique<ConnectionResult>'),'failed chat enumeration cannot publish a partial connection');
+assert(connect.indexOf('auto chats=source->chatsWithControl(*app.control)')<connect.indexOf('std::make_unique<ConnectionResult>'),'failed chat enumeration cannot publish a partial connection');
+assert(connect.includes('std::make_shared<WindowsSource>(profile,app.control.get())')&&connect.includes(';},true);'),'connection construction and enumeration expose stop control');
+assert.equal((cpp.match(/app\.report=probe\(app\.control\.get\(\)\);/g)||[]).length,2,'both probe entrypoints propagate task cancellation');
+assert(cpp.includes('既有收藏或人工範例。";},true);')&&cpp.includes('完整採集仍待實機驗證。";},true);'),'both probe tasks enable stop');
 assert(connect.includes('app.control->check();'),'closing during enumeration discards the completed connection');
 assert(connect.includes('pending.get())))throw Error(')&&connect.includes('pending.release();'),'failed posting retains RAII ownership; successful posting transfers it');
 const receive=cpp.slice(cpp.indexOf('case MSG_CHATS:'),cpp.indexOf('case MSG_DONE:'));

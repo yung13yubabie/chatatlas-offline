@@ -34,6 +34,15 @@ int main(){fs::path fixture;try{
  expect(little(bytes,129,4)==0x06064b50&&little(bytes,153,8)==1&&little(bytes,169,8)==75&&little(bytes,177,8)==54,"ZIP64 EOCD values");
  expect(little(bytes,185,4)==0x07064b50&&little(bytes,193,8)==129&&little(bytes,205,4)==0x06054b50&&bytes.size()==227,"locator and legacy EOCD");
  {Zip zip(fixture/"names.zip");rejects([&]{zip.add(source,std::string(65536,'n'),{});},"writer long name rejection");zip.add(source,std::string(65535,'n'),{});zip.close();}expect(little(readText(fixture/"names.zip"),26,2)==65535,"writer maximum name");
+
+ const auto cancelled=fixture/"cancelled.zip",partial=fixture/"cancelled.partial";int centralTicks=0;bool cancelledCaught=false;
+ try{{Zip zip(partial);zip.add(source,"a",{});zip.add(source,"b",{});zip.close([&]{if(++centralTicks==2)throw Cancelled();});}publishNew(partial,cancelled);}catch(const Cancelled&){cancelledCaught=true;fs::remove(partial);}
+ expect(cancelledCaught&&centralTicks==2&&!fs::exists(cancelled)&&!fs::exists(partial),"central directory cancellation prevents publication");
+ const auto finished=fixture/"finished.zip",pending=fixture/"finished.partial",retained=fixture/"retained-snapshot";
+ {Zip zip(pending);zip.add(source,"a",{});zip.close();}publishNew(pending,finished);
+ fs::create_directory(retained);{std::ofstream f(retained/"synthetic-blocker");f<<"x";}
+ expect(cleanupPublishedSnapshot(retained)==retained&&fs::exists(finished),"published ZIP stays completed with retained cleanup warning");
+ expect(cleanupPublishedSnapshot(fixture/"already-absent").empty(),"already removed snapshot needs no warning");
  int ticks=0;
 #ifdef _WIN32
  // The validated reader intentionally denies write-sharing. Do not relax it

@@ -99,8 +99,9 @@ ImportResult importBackup(const fs::path& givenSource,const fs::path& givenDesti
   checkTick(tick);noLinks(stage);if(relativeToDirectory(dest,source))throw Error("新的收藏不可放在原備份裡面。");publishDirectory(payload,dest);
   // Never recursively delete a staging tree by pathname. Only our checked
   // input copy and now-empty staging directory are candidates for cleanup.
+  // Cancellation/errors here retain the stage, but cannot undo successful publication.
   fs::path retained=stage;
-  try{noLinks(stage);noLinks(input);auto copy=digest(input);if(copy.hash==initial.hash&&copy.size==initial.size&&fs::remove(input)&&fs::remove(stage))retained.clear();}catch(...){}
+  try{noLinks(stage);noLinks(input);auto copy=digest(input,tick);if(copy.hash==initial.hash&&copy.size==initial.size&&fs::remove(input)&&fs::remove(stage))retained.clear();}catch(...){}
   return {dest,retained};
  }catch(const Cancelled&){throw ImportFailure("匯入已停止，原備份未改動；未完成的私人副本已保留。",stage,true);}
  catch(const Error& e){throw ImportFailure(std::string(e.what())+" 原備份未改動；未完成的私人副本已保留。",stage);}

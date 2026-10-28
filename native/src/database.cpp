@@ -55,7 +55,8 @@ std::string Db::protectionNotice()const{
  if(trustedSchemaOff&&cellSizeCheck)return {};
  return "提醒：這台電腦的資料庫元件不支援部分額外保護，請只開啟可信來源的收藏，並更新 Windows。";
 }
-J Db::rows(const std::string&query,const J&givenArgs){
+J Db::rows(const std::string&query,const J&givenArgs,Tick tick){
+ if(tick)tick();
  const int queryLength=databaseIntLength(query.size());
  J args=givenArgs.is_array()?givenArgs:J::array({givenArgs});
  databaseIntLength(args.size());
@@ -73,9 +74,12 @@ J Db::rows(const std::string&query,const J&givenArgs){
   if(rc)throw Error("保存內容未能完成。");
  }
  J result=J::array();int rc;
- while((rc=s.step(statement))==100){
+ while(true){
+  if(tick)tick();rc=s.step(statement);if(rc!=100)break;
+  if(tick)tick();
   J row=J::object();
   for(int c=0;c<s.columns(statement);c++){
+   if(tick)tick();
    const auto name=s.name(statement,c);
    if(!name)throw Error("資料庫讀取記憶體不足。");
    const int type=s.type(statement,c);

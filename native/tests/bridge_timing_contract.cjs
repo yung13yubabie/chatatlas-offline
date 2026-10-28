@@ -13,3 +13,12 @@ assert(call.includes('control&&control->stopped.load()'),'in-flight gate checks 
 assert(call.indexOf('gate.afterResponse()')>call.indexOf('buffered.erase('),'response is consumed before pausing');
 assert(call.includes('catch(...){close();throw;}'),'stop and bridge errors close the bridge');
 console.log('Bridge pause boundary wiring contracts passed (not real LINE validation).');
+const header=fs.readFileSync(path.join(__dirname,'../src/windows_source.hpp'),'utf8');
+assert(header.includes('std::move(values),requestControl)'), 'all helper requests inherit task control');
+const methods=source.slice(source.indexOf('WindowsSource::WindowsSource'),source.indexOf('J probe('));
+assert(!methods.includes('bridge.call('), 'helper chains cannot bypass scoped control');
+assert.equal((methods.match(/RequestControlScope scope\(requestControl,control\)/g)||[] ).length,3, 'enumeration, read and download bind task control');
+assert(methods.includes('catch(const Cancelled&){throw;}catch(...){if(i>=50)'), 'select retry never swallows stop');
+
+assert(methods.includes('RequestControlScope scope(requestControl,control?*control:local)'), 'constructor requests use optional task control');
+assert(source.includes('bridge.call("connect",J::object(),control);auto shape=bridge.call("inspect",J::object(),control)'), 'probe requests observe task control');
