@@ -17,10 +17,10 @@ from line_vault.store import Store
 class ArchiveCase(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
         self.base=Path(self.tmp.name);self.root=self.base/"私人封存 資料"
         self.store=Store(self.root)
-    def tearDown(self):
-        self.store.close();self.tmp.cleanup()
+        self.addCleanup(lambda: self.store.close())
     def seed(self):
         source=SyntheticSource()
         result=Collector(self.store,source).run(source.list_chats())
@@ -155,20 +155,20 @@ class ArchiveCase(unittest.TestCase):
     def test_export_is_offline_and_escapes_script(self):
         cid=self.add_chat()
         with self.store.transaction():self.store.put_items(cid,[Item("x","message","</script><img src=https://example.invalid onerror=alert(1)>")])
-        p=export_html(self.store);content=p.read_text()
+        p=export_html(self.store);content=p.read_text(encoding="utf-8")
         self.assertIn("connect-src 'none'",content)
         chunks=list((self.root/"reader").rglob("*.js"));self.assertTrue(chunks)
-        self.assertNotIn("</script>",chunks[0].read_text())
-        self.assertIn("\\u003c/script>",chunks[0].read_text())
+        self.assertNotIn("</script>",chunks[0].read_text(encoding="utf-8"))
+        self.assertIn("\\u003c/script>",chunks[0].read_text(encoding="utf-8"))
     def test_old_reader_generation_removed(self):
         self.seed();export_html(self.store);first=next((self.root/"reader").iterdir());export_html(self.store)
         self.assertFalse(first.exists());self.assertEqual(len(list((self.root/"reader").iterdir())),1)
     def test_export_hides_missing_download(self):
         self.seed();r=self.store.db.execute("SELECT path FROM blobs LIMIT 1").fetchone();within(self.root,r[0]).unlink();export_html(self.store)
-        payload="".join(p.read_text() for p in (self.root/"reader").rglob("*.js"))
+        payload="".join(p.read_text(encoding="utf-8") for p in (self.root/"reader").rglob("*.js"))
         self.assertIn('"status":"failed"',payload)
     def test_archive_zip_contains_only_portable_files(self):
-        self.seed();export_html(self.store);(self.root/"connection.local.json").write_text("private")
+        self.seed();export_html(self.store);(self.root/"connection.local.json").write_text("private", encoding="utf-8")
         dest=self.base/"copy.zip";make_zip(self.store,dest)
         with zipfile.ZipFile(dest) as z:
             self.assertIn("index.html",z.namelist());self.assertIn("archive.sqlite3",z.namelist());self.assertNotIn("connection.local.json",z.namelist())

@@ -3,6 +3,25 @@
 #include <fstream>
 using namespace atlas;
 static int passed=0;static void expect(bool ok,const char*msg){if(!ok)throw std::runtime_error(msg);passed++;}template<class F>void rejected(F fn,const char*msg){bool failed=false;try{fn();}catch(...){failed=true;}expect(failed,msg);}
+static fs::path permissionTests(const fs::path&fixture){
+ auto parent=fixture/"existing-output-parent";
+ fs::create_directory(parent);
+#ifndef _WIN32
+ const auto sharedMode=fs::perms::owner_all|fs::perms::group_read|fs::perms::group_exec|fs::perms::others_read|fs::perms::others_exec;
+ fs::permissions(parent,sharedMode,fs::perm_options::replace); // This test owns parent.
+ privateDir(parent);
+ expect(fs::status(parent).permissions()==sharedMode,"existing directory permissions preserved");
+ auto created=privateDir(fixture/"new-private-directory");
+ expect(fs::status(created).permissions()==fs::perms::owner_all,"new directory is private");
+ atomicText(parent/"original.bin","artificial bytes");
+ expect(fs::status(parent).permissions()==sharedMode,"atomic write preserves parent permissions");
+ expect(fs::status(parent/"original.bin").permissions()==(fs::perms::owner_read|fs::perms::owner_write),"atomic file is private");
+ copyVerified(parent/"original.bin",parent/"copy.bin");
+ expect(fs::status(parent).permissions()==sharedMode,"copy preserves parent permissions");
+ expect(fs::status(parent/"copy.bin").permissions()==(fs::perms::owner_read|fs::perms::owner_write),"copied file is private");
+#endif
+ return parent;
+}
 static void containmentTests(const fs::path&root){
  expect(canonicalHash(std::string(64,'a')), "canonical lowercase hash accepted");
  for(const auto&value:std::vector<std::string>{std::string(64,'A'),std::string(63,'a'),"../synthetic",""})
@@ -27,7 +46,20 @@ static void containmentTests(const fs::path&root){
   }fs::remove_all(p);fs::remove_all(outside);
  }
 }
-int main(int argc,char**argv){auto root=fs::temp_directory_path()/path8("atlas-native-test-"+sha(now()+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,12));try{
+int main(int argc,char**argv){
+ const auto temporary=fs::temp_directory_path();
+ const auto temporaryPermissions=fs::status(temporary).permissions();
+ const auto fixture=temporary/path8("atlas-native-test-"+sha(now()+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,12));
+ const auto root=fixture/"archive";
+ try{
+ // Keep archives and backup destinations inside a directory owned by this test.
+ // No test output or permission mutation should target the shared temporary root.
+ noLinks(fixture);
+ if(!fs::create_directory(fixture))throw Error("Test fixture already exists.");
+#ifndef _WIN32
+ fs::permissions(fixture,fs::perms::owner_all,fs::perm_options::replace); // Exclusively created above.
+#endif
+ const auto outputParent=permissionTests(fixture);
  expect(sha("")=="e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","empty SHA");expect(sha("abc")=="ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad","abc SHA");expect(base64("abc")=="YWJj"&&base64("a")=="YQ==","base64");expect(normalizeTime("2026-01-01T08:30:00+08:00")=="2026-01-01T00:30:00.000+00:00","time zone");rejected([&]{normalizeTime("2026-02-30T08:00:00Z");},"bad date");rejected([&]{normalizeTime("2026-01-01T08:00:00");},"missing zone");expect(safeName("CON")=="_CON","Windows reserved name");rejected([&]{within(root,"../private");},"path traversal");
  {
  Store s(root);Control control;DemoSource demo;auto first=collect(s,demo,demo.chats(),control);expect(first["items"]==19,"native demo count");expect(first["downloaded"]==2&&demo.downloads==2,"exact content reuse");expect(s.check().empty(),"healthy archive");auto count=s.summary()["items"];DemoSource second(2);auto update=collect(s,second,second.chats(),control);expect(update["downloaded"]==0&&second.downloads==0&&update["reused"]==3,"second capture has zero downloads");expect(s.summary()["items"]==count,"message update has no duplicates");auto cid=s.db.rows("SELECT id FROM chats WHERE source_id='project'")[0]["id"].get<std::string>();expect(s.db.rows("SELECT text FROM items WHERE chat_id=? AND source_id='m1'",{cid})[0]["text"].get<std::string>().find("已更新")!=std::string::npos,"latest message replaces old");
@@ -43,6 +75,12 @@ int main(int argc,char**argv){auto root=fs::temp_directory_path()/path8("atlas-n
  auto info=downloadParts(s,s.db.rows("SELECT * FROM blobs LIMIT 1")[0]);atomicText(within(root,info["parts"][0]["path"]),"broken");auto problems=s.check();expect(std::any_of(problems.begin(),problems.end(),[](const J&v){return v["code"]=="reader_data";}),"reader damage is distinct");exportHtml(s);expect(s.check().empty(),"rebuilding repairs reader without download");
  atomicText(within(root,"assets/unknown.bin"),"kept");auto issues=s.check();expect(std::any_of(issues.begin(),issues.end(),[](const J&v){return v["code"]=="unregistered_file";}),"orphan file reported");
  auto zip=root.parent_path()/(root.filename().string()+".zip");makeZip(s,zip);expect(fs::file_size(zip)>0,"ZIP created");rejected([&]{makeZip(s,zip);},"existing ZIP not overwritten");if(argc>1&&std::string(argv[1])=="--keep"){std::cout<<utf8(root)<<"\n"<<utf8(zip)<<"\n";}else fs::remove(zip);
+ const auto outputPermissions=fs::status(outputParent).permissions();
+ makeZip(s,outputParent/"permissions-copy.zip");
+ expect(fs::status(outputParent).permissions()==outputPermissions,"ZIP preserves existing destination-parent permissions");
+#ifndef _WIN32
+ expect(fs::status(outputParent/"permissions-copy.zip").permissions()==(fs::perms::owner_read|fs::perms::owner_write),"ZIP file is private");
+#endif
  auto job=s.db.rows("SELECT id FROM jobs ORDER BY id DESC LIMIT 1")[0]["id"];s.db.execute("UPDATE jobs SET status='running' WHERE id=?",{job});
  }
  {Store again(root);expect(again.db.rows("SELECT status FROM jobs ORDER BY id DESC LIMIT 1")[0]["status"]=="interrupted","interrupted job recovered");}
@@ -53,5 +91,6 @@ int main(int argc,char**argv){auto root=fs::temp_directory_path()/path8("atlas-n
  {auto p=root.parent_path()/(root.filename().string()+"-bytes");{Store s(p);struct Wrong:DemoSource{fs::path download(const J&,const J&,const fs::path&d,Control&)override{auto p=d/"payload.bin";atomicText(p,"wrong bytes");return p;}}source;Control c;auto result=collect(s,source,source.chats(),c);expect(result["failed"]==3&&result["downloaded"]==0,"wrong bytes never become saved");expect(s.db.rows("SELECT count(*) AS n FROM blobs")[0]["n"]==0,"failed payload is not registered");}fs::remove_all(p);}
  {auto p=root.parent_path()/(root.filename().string()+"-separate");{Store s(p);std::string one,two;s.db.transaction([&]{one=s.putChat("account-a",{{"source_id","same"},{"title","Same name"},{"kind","group"}});two=s.putChat("account-b",{{"source_id","same"},{"title","Same name"},{"kind","group"}});});expect(one!=two,"same-name chats from separate accounts stay separate");}fs::remove_all(p);}
  containmentTests(root);
- if(argc<=1||std::string(argv[1])!="--keep")fs::remove_all(root);std::cout<<"native core: "<<passed<<" checks passed\n";return 0;
+ expect(fs::status(temporary).permissions()==temporaryPermissions,"shared temporary directory permissions unchanged");
+ if(argc<=1||std::string(argv[1])!="--keep")fs::remove_all(fixture);std::cout<<"native core: "<<passed<<" checks passed\n";return 0;
  }catch(const std::exception&e){std::cerr<<"FAILED after "<<passed<<" checks: "<<e.what()<<"\n";return 1;}}

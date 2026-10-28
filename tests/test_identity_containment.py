@@ -14,9 +14,11 @@ from line_vault.transport import prepare_download
 class IdentityContainmentCase(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
         self.root = self.base / "archive"
         self.store = Store(self.root)
+        self.addCleanup(lambda: self.store.close())
         with self.store.transaction():
             self.cid = self.store.put_chat("synthetic-regression", Chat("room", "Artificial test"))
             self.store.put_items(self.cid, [Item("message", "message", "Artificial text")])
@@ -28,9 +30,6 @@ class IdentityContainmentCase(unittest.TestCase):
             self.store.save_blob(self.aid, "assets/artificial.bin", sha, size)
         export_html(self.store)
 
-    def tearDown(self):
-        self.store.close()
-        self.temp.cleanup()
 
     def assert_rejected_without_output(self):
         before = sorted(str(p.relative_to(self.base)) for p in self.base.rglob("*"))

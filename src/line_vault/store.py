@@ -53,7 +53,10 @@ def key(*parts: str) -> str:
 
 class Store:
     def __init__(self, root: Path):
-        self.root = private_dir(root)
+        # Reject links before resolving, then retain one canonical spelling.
+        # Windows temporary paths may use an 8.3 alias while within() and
+        # filesystem walks return the long form of that same directory.
+        self.root = private_dir(root).resolve(strict=True)
         self.lock = ArchiveLock(self.root)
         self.db = None
         try:

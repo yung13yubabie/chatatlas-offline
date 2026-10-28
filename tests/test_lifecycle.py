@@ -19,17 +19,48 @@ from line_vault.store import Store
 class LifecycleTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
         self.base=Path(self.temp.name)
         self.root=self.base/'archive'
         self.store=Store(self.root)
+        self.addCleanup(lambda: self.store.close())
 
-    def tearDown(self):
-        self.store.close()
-        self.temp.cleanup()
 
     def seed(self):
         s=SyntheticSource()
         return Collector(self.store,s).run(s.list_chats())
+
+    def test_store_retains_canonical_root(self):
+        self.store.close()
+        intermediate = self.base / "intermediate"
+        intermediate.mkdir()
+        alias = intermediate / ".." / self.root.name
+        self.store = Store(alias)
+        self.assertEqual(self.store.root, self.root.resolve(strict=True))
+        self.seed()
+        self.assertEqual(self.store.check(), [])
+        export_html(self.store)
+        self.assertEqual(self.store.check(), [])
+
+    @unittest.skipUnless(os.name == "nt", "Windows 8.3 path alias regression")
+    def test_windows_short_path_alias(self):
+        import ctypes
+        self.store.close()
+        long_path = str(self.root.resolve(strict=True))
+        short_path = ctypes.windll.kernel32.GetShortPathNameW
+        short_path.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+        short_path.restype = ctypes.c_uint
+        required = short_path(long_path, None, 0)
+        self.assertGreater(required, 0)
+        buffer = ctypes.create_unicode_buffer(required)
+        self.assertGreater(short_path(long_path, buffer, required), 0)
+        self.store = Store(Path(buffer.value))
+        self.assertEqual(self.store.root, Path(long_path))
+        self.seed()
+        self.assertEqual(self.store.check(), [])
+        export_html(self.store)
+        make_zip(self.store, self.base / "short-path-backup.zip")
+        self.assertEqual(self.store.check(), [])
 
     def test_second_process_cannot_publish_same_archive(self):
         code='from line_vault.store import Store;from pathlib import Path;Store(Path(__import__("sys").argv[1]))'
@@ -165,7 +196,7 @@ class LifecycleTests(unittest.TestCase):
             import base64
             chunks=[]
             for part in info['parts']:
-                script=within(self.root,part['path']).read_text()
+                script=within(self.root,part['path']).read_text(encoding="utf-8")
                 args=json.loads('['+script.removeprefix('window.VaultBytes.add(').removesuffix(');\n')+']')
                 chunks.append(base64.b64decode(args[2]))
             self.assertEqual(b''.join(chunks),payload)
@@ -174,7 +205,7 @@ class LifecycleTests(unittest.TestCase):
         self.seed();export_html(self.store)
         blob=self.store.db.execute('SELECT * FROM blobs LIMIT 1').fetchone();info=download_parts(self.store,blob)
         info['parts'][0]['path']='connection.local.json'
-        within(self.root,'downloads/'+blob['sha256']+'/info.json').write_text(json.dumps(info))
+        within(self.root,'downloads/'+blob['sha256']+'/info.json').write_text(json.dumps(info), encoding="utf-8")
         fixed=download_parts(self.store,blob)
         self.assertTrue(fixed['parts'][0]['path'].startswith('downloads/'))
 
