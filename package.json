@@ -1,0 +1,13 @@
+{
+  "name": "chatatlas-development",
+  "version": "0.3.1-alpha.1",
+  "private": true,
+  "scripts": {
+    "test:graph": "node tools/graph_model_test.cjs",
+    "test:reader": "node tools/reader_test.cjs",
+    "test:map": "node tools/graph_browser_test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

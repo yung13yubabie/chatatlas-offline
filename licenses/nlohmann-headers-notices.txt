@@ -1,0 +1,43 @@
+Public upstream nlohmann/json 3.12.0 header notices
+
+The full original headers and MIT license are available in the separate matching source ZIP.
+These unchanged leading notices are collected here for binary recipients.
+
+Files: adl_serializer.hpp, byte_container_with_subtype.hpp, detail/abi_macros.hpp, detail/conversions/from_json.hpp, detail/conversions/to_json.hpp, detail/exceptions.hpp, detail/hash.hpp, detail/input/binary_reader.hpp, detail/input/input_adapters.hpp, detail/input/json_sax.hpp, detail/input/lexer.hpp, detail/input/parser.hpp, detail/input/position_t.hpp, detail/iterators/internal_iterator.hpp, detail/iterators/iter_impl.hpp, detail/iterators/iteration_proxy.hpp, detail/iterators/iterator_traits.hpp, detail/iterators/json_reverse_iterator.hpp, detail/iterators/primitive_iterator.hpp, detail/json_custom_base_class.hpp, detail/json_pointer.hpp, detail/json_ref.hpp, detail/macro_scope.hpp, detail/macro_unscope.hpp, detail/meta/call_std/begin.hpp, detail/meta/call_std/end.hpp, detail/meta/detected.hpp, detail/meta/identity_tag.hpp, detail/meta/is_sax.hpp, detail/meta/std_fs.hpp, detail/meta/type_traits.hpp, detail/meta/void_t.hpp, detail/output/binary_writer.hpp, detail/output/output_adapters.hpp, detail/string_concat.hpp, detail/string_escape.hpp, detail/string_utils.hpp, detail/value_t.hpp, json.hpp, json_fwd.hpp, ordered_map.hpp, thirdparty/hedley/hedley_undef.hpp
+//     __ _____ _____ _____
+//  __|  |   __|     |   | |  JSON for Modern C++
+// |  |  |__   |  |  | | | |  version 3.12.0
+// |_____|_____|_____|_|___|  https://github.com/nlohmann/json
+//
+// SPDX-FileCopyrightText: 2013 - 2025 Niels Lohmann <https://nlohmann.me>
+// SPDX-License-Identifier: MIT
+
+Files: detail/conversions/to_chars.hpp
+//     __ _____ _____ _____
+//  __|  |   __|     |   | |  JSON for Modern C++
+// |  |  |__   |  |  | | | |  version 3.12.0
+// |_____|_____|_____|_|___|  https://github.com/nlohmann/json
+//
+// SPDX-FileCopyrightText: 2009 Florian Loitsch <https://florian.loitsch.com/>
+// SPDX-FileCopyrightText: 2013 - 2025 Niels Lohmann <https://nlohmann.me>
+// SPDX-License-Identifier: MIT
+
+Files: detail/meta/cpp_future.hpp
+//     __ _____ _____ _____
+//  __|  |   __|     |   | |  JSON for Modern C++
+// |  |  |__   |  |  | | | |  version 3.12.0
+// |_____|_____|_____|_|___|  https://github.com/nlohmann/json
+//
+// SPDX-FileCopyrightText: 2013 - 2025 Niels Lohmann <https://nlohmann.me>
+// SPDX-FileCopyrightText: 2018 The Abseil Authors
+// SPDX-License-Identifier: MIT
+
+Files: detail/output/serializer.hpp
+//     __ _____ _____ _____
+//  __|  |   __|     |   | |  JSON for Modern C++
+// |  |  |__   |  |  | | | |  version 3.12.0
+// |_____|_____|_____|_|___|  https://github.com/nlohmann/json
+//
+// SPDX-FileCopyrightText: 2008 - 2009 Björn Hoehrmann <bjoern@hoehrmann.de>
+// SPDX-FileCopyrightText: 2013 - 2025 Niels Lohmann <https://nlohmann.me>
+// SPDX-License-Identifier: MIT
