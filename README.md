@@ -55,7 +55,7 @@
 
 原生啟動畫面尚未連接 LINE，不等於已完成真實採集。真正預設保存位置為 EXE 旁的 `ChatAtlasData/Collections`。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
 
-[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40681046984) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40680881996)
+[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713448403) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713161892)
 
 ### 採集紀錄
 
