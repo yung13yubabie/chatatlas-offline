@@ -41,7 +41,11 @@ public static class AtlasSmokeWindow {
  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect value);
  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
- [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern bool SetWindowText(IntPtr hwnd, string text);
+ [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)]
+ public static extern IntPtr SetControlText(IntPtr hwnd, uint message, IntPtr wParam, string text);
+ [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)]
+ public static extern IntPtr ReadControlText(IntPtr hwnd, uint message, IntPtr wParam, StringBuilder text);
+ [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr hwnd, IntPtr rect, IntPtr region, uint flags);
 }
 '@
  $start=New-Object Diagnostics.ProcessStartInfo
@@ -80,9 +84,22 @@ public static class AtlasSmokeWindow {
    [void][AtlasSmokeWindow]::GetWindowThreadProcessId($p.MainWindowHandle,[ref]$owner)
    if ($owner -ne $p.Id) { throw 'Screenshot window ownership changed' }
    $folder=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,105)
-   if (![AtlasSmokeWindow]::SetWindowText($folder,'C:\ChatAtlas-Example')) { throw 'Could not set neutral screenshot input' }
+   [uint32]$folderOwner=0
+   [void][AtlasSmokeWindow]::GetWindowThreadProcessId($folder,[ref]$folderOwner)
+   if ($folder -eq [IntPtr]::Zero -or $folderOwner -ne $p.Id) { throw 'Screenshot input ownership changed' }
+   $neutral='C:\ChatAtlas-Example'
+   # WM_SETTEXT is marshalled for the edit in our separate process. SetWindowText
+   # does not reliably update another process's edit controls.
+   if ([AtlasSmokeWindow]::SetControlText($folder,0x000C,[IntPtr]::Zero,$neutral) -eq [IntPtr]::Zero) { throw 'Could not set neutral screenshot input' }
+   $visible=New-Object Text.StringBuilder 256
+   [void][AtlasSmokeWindow]::ReadControlText($folder,0x000D,[IntPtr]$visible.Capacity,$visible)
+   if ($visible.ToString() -cne $neutral) { throw 'Neutral screenshot input readback mismatch' }
    # This is an input example, not a claim that this archive exists or was saved.
-   Start-Sleep -Milliseconds 250
+   [void][AtlasSmokeWindow]::RedrawWindow($p.MainWindowHandle,[IntPtr]::Zero,[IntPtr]::Zero,0x0185)
+   Start-Sleep -Milliseconds 500
+   [void]$visible.Clear()
+   [void][AtlasSmokeWindow]::ReadControlText($folder,0x000D,[IntPtr]$visible.Capacity,$visible)
+   if ($visible.ToString() -cne $neutral) { throw 'Neutral screenshot input changed before capture' }
    $rect=New-Object 'AtlasSmokeWindow+Rect'
    if (![AtlasSmokeWindow]::GetWindowRect($p.MainWindowHandle,[ref]$rect)) { throw 'Native screenshot bounds unavailable' }
    $width=$rect.Right-$rect.Left; $height=$rect.Bottom-$rect.Top
