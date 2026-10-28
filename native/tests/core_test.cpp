@@ -46,6 +46,36 @@ static void containmentTests(const fs::path&root){
   }fs::remove_all(p);fs::remove_all(outside);
  }
 }
+static void lifecycleTests(const fs::path&fixture){
+ const auto root=fixture/"lifecycle";
+ {
+  Store s(root);Control control;DemoSource source;collect(s,source,source.chats(),control);exportHtml(s);
+  const auto original=s.db.rows("SELECT * FROM blobs ORDER BY id LIMIT 1")[0];
+  fs::remove(within(root,original["path"].get<std::string>()));
+  expect(!s.check().empty(),"missing attachment reported");
+  DemoSource repair;auto repaired=collect(s,repair,repair.chats(),control);
+  expect(repaired["downloaded"]==1&&repair.downloads==1,"only missing content is downloaded again");
+  expect(s.check().empty(),"missing content repair preserves healthy archive");
+  const auto count=s.summary()["items"];
+  struct BrokenBatch:DemoSource{Batch read(const J&chat,const std::set<std::string>&k,const std::string&a,const std::string&b,Control&c)override{auto batch=DemoSource::read(chat,k,a,b,c);if(!batch.items.empty())batch.items.push_back(batch.items[0]);return batch;}}broken;
+  rejected([&]{collect(s,broken,broken.chats(),control);},"duplicate batch rejected");
+  expect(s.summary()["items"]==count,"rejected batch leaves original item count");
+  expect(s.db.rows("SELECT status FROM jobs ORDER BY id DESC LIMIT 1")[0]["status"]=="failed","rejected batch has failed job status");
+  auto zip=fixture/"cancelled-backup.zip",partial=zip;partial+=".partial";
+  rejected([&]{makeZip(s,zip,[&]{if(fs::exists(partial))throw Cancelled();});},"cancel during ZIP is reported");
+  expect(!fs::exists(zip)&&!fs::exists(partial),"cancelled ZIP leaves no published or partial archive");
+  bool snapshot=false;for(const auto&e:fs::directory_iterator(root))if(e.path().filename().string().starts_with("backup-"))snapshot=true;
+  expect(!snapshot,"cancelled ZIP removes its database snapshot");
+  for(const auto&status:std::vector<std::string>{"pending","failed","unavailable","preview"}){
+   s.db.execute("UPDATE attachments SET status=? WHERE id=(SELECT id FROM attachments ORDER BY id LIMIT 1)",{status});
+   auto incomplete=fixture/("incomplete-"+status+".zip");
+   rejected([&]{makeZip(s,incomplete);},"incomplete original attachment cannot be called complete backup");
+   expect(!fs::exists(incomplete),"incomplete backup is not published");
+   s.db.execute("UPDATE attachments SET status='saved'");
+  }
+ }
+ fs::remove_all(root);
+}
 int main(int argc,char**argv){
  const auto temporary=fs::temp_directory_path();
  const auto temporaryPermissions=fs::status(temporary).permissions();
@@ -90,6 +120,7 @@ int main(int argc,char**argv){
  {auto p=root.parent_path()/(root.filename().string()+"-changed");{Store s(p);struct Changed:DemoSource{int calls=0;fs::path download(const J&,const J&,const fs::path&,Control&)override{calls++;throw CapabilityError("identity changed");}}source;Control c;rejected([&]{collect(s,source,source.chats(),c);},"identity failure stops capture");expect(source.calls==1,"identity failure is never retried");expect(s.db.rows("SELECT status FROM jobs LIMIT 1")[0]["status"]=="failed","identity failure is visible");}fs::remove_all(p);}
  {auto p=root.parent_path()/(root.filename().string()+"-bytes");{Store s(p);struct Wrong:DemoSource{fs::path download(const J&,const J&,const fs::path&d,Control&)override{auto p=d/"payload.bin";atomicText(p,"wrong bytes");return p;}}source;Control c;auto result=collect(s,source,source.chats(),c);expect(result["failed"]==3&&result["downloaded"]==0,"wrong bytes never become saved");expect(s.db.rows("SELECT count(*) AS n FROM blobs")[0]["n"]==0,"failed payload is not registered");}fs::remove_all(p);}
  {auto p=root.parent_path()/(root.filename().string()+"-separate");{Store s(p);std::string one,two;s.db.transaction([&]{one=s.putChat("account-a",{{"source_id","same"},{"title","Same name"},{"kind","group"}});two=s.putChat("account-b",{{"source_id","same"},{"title","Same name"},{"kind","group"}});});expect(one!=two,"same-name chats from separate accounts stay separate");}fs::remove_all(p);}
+ lifecycleTests(fixture);
  containmentTests(root);
  expect(fs::status(temporary).permissions()==temporaryPermissions,"shared temporary directory permissions unchanged");
  if(argc<=1||std::string(argv[1])!="--keep")fs::remove_all(fixture);std::cout<<"native core: "<<passed<<" checks passed\n";return 0;

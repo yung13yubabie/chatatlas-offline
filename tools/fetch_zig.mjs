@@ -12,7 +12,7 @@ const response=await fetch('https://ziglang.org/download/0.14.1/'+name+extension
 let size=0;const chunks=[];for await(const chunk of response.body){size+=chunk.length;if(size>100*1024*1024)throw Error('Toolchain size limit exceeded');chunks.push(chunk);}
 const bytes=Buffer.concat(chunks);if(sha(bytes)!==expected)throw Error('Toolchain checksum mismatch; nothing extracted');fs.writeFileSync(archive,bytes,{flag:'wx'});
 // Exact upstream bytes authenticated by pinned digest before extraction. Windows bsdtar handles ZIP.
-const entries=execFileSync('tar',['-tf',archive],{encoding:'utf8'}).trim().split(/\r?\n/);
+const entries=execFileSync('tar',['-tf',archive],{encoding:'utf8',maxBuffer:16*1024*1024}).trim().split(/\r?\n/);
 if(entries.some(p=>!p.startsWith(name+'/')||p.split('/').includes('..')||path.posix.isAbsolute(p)))throw Error('Unexpected toolchain archive path');
 execFileSync('tar',['-xf',archive,'-C',root,...(windows?[]:['--no-same-owner'])],{stdio:'inherit'});
 console.log(path.join(root,name,windows?'zig.exe':'zig'));

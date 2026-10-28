@@ -16,6 +16,7 @@ jobs:
       - run: node tools/check_public_tree.mjs
       - run: node tools/package_test.mjs
       - run: node native/tests/windows_bridge_contract.cjs
+      - run: node native/tests/app_flow_contract.cjs
       - run: make -C native test build/atlas-cli
       - run: node tools/graph_model_test.cjs
   browser:
@@ -33,6 +34,22 @@ jobs:
       - run: node tools/graph_browser_test.cjs
         env:
           ATLAS_EXAMPLE: ${{ runner.temp }}/chatatlas-synthetic
+      - name: Offline UI acceptance and screenshots
+        shell: bash
+        run: |
+          mkdir -p "$ATLAS_QA"
+          node tools/offline_ui_test.cjs 2>&1 | tee "$ATLAS_QA/test-report.txt"
+        env:
+          ATLAS_EXAMPLE: ${{ runner.temp }}/chatatlas-synthetic
+          ATLAS_QA: ${{ runner.temp }}/chatatlas-ui-evidence
+      - name: Upload artificial UI evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ChatAtlas-artificial-UI-evidence
+          path: ${{ runner.temp }}/chatatlas-ui-evidence/*
+          if-no-files-found: warn
+          retention-days: 14
   windows-native:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -43,8 +60,17 @@ jobs:
       - run: node tools/check_public_tree.mjs
       - run: node tools/package_test.mjs
       - run: node native/tests/windows_bridge_contract.cjs
+      - run: node native/tests/app_flow_contract.cjs
       - run: node tools/fetch_zig.mjs
       - run: node tools/windows_native_tests.mjs
+      - name: Build native Windows executable
+        run: node native/build.mjs
+        env:
+          ATLAS_ZIG: ${{ github.workspace }}/.toolchains/zig-x86_64-windows-0.14.1/zig.exe
+      - run: node native/tests/no_install_contract.cjs native/out/ChatAtlas.exe
+      - name: No developer tools runtime smoke test
+        shell: powershell
+        run: ./native/tests/no_install_runtime.ps1 -Exe native/out/ChatAtlas.exe
       - name: Synthetic bridge checks, without LINE
         shell: powershell
         run: ./native/tests/windows_bridge_test.ps1

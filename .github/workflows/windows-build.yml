@@ -23,11 +23,13 @@ jobs:
       - run: make -C native test build/atlas-cli
       - run: node tools/graph_model_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs
+      - run: node native/tests/app_flow_contract.cjs
       - run: node tools/fetch_zig.mjs
       - run: node native/build.mjs
         env:
           ATLAS_ZIG: ${{ github.workspace }}/.toolchains/zig-x86_64-linux-0.14.1/zig
       - run: node tools/package_release.mjs --output dist
+      - run: node native/tests/consumer_zip_contract.cjs "dist/ChatAtlas-$(cat VERSION)-Windows-x64-candidate.zip"
       - name: Attest exact final assets
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
         with:
@@ -46,7 +48,54 @@ jobs:
         with:
           persist-credentials: false
       - run: node tools/fetch_zig.mjs
+      - run: node native/tests/app_flow_contract.cjs
       - run: node tools/windows_native_tests.mjs
+      - name: Build native Windows executable
+        run: node native/build.mjs
+        env:
+          ATLAS_ZIG: ${{ github.workspace }}/.toolchains/zig-x86_64-windows-0.14.1/zig.exe
+      - run: node native/tests/no_install_contract.cjs native/out/ChatAtlas.exe
+      - name: No developer tools runtime smoke test
+        shell: powershell
+        run: ./native/tests/no_install_runtime.ps1 -Exe native/out/ChatAtlas.exe
       - name: Synthetic bridge checks, without LINE
         shell: powershell
         run: ./native/tests/windows_bridge_test.ps1
+  exact-release-smoke:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ChatAtlas-alpha-candidate-NOT-security-approved
+          path: downloaded-release
+      - name: Verify and exercise the exact packaged executable
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
+          $zipName = 'ChatAtlas-' + $version + '-Windows-x64-candidate.zip'
+          $zip = Join-Path 'downloaded-release' $zipName
+          $sumLines = Get-Content -LiteralPath 'downloaded-release/SHA256SUMS.txt'
+          $checksumEntries = @($sumLines | Where-Object { $_ -match ('^[0-9a-f]{64}  ' + [Regex]::Escape($zipName) + '$') })
+          if ($checksumEntries.Count -ne 1) { throw 'Candidate ZIP checksum entry missing or duplicated' }
+          $expected = $checksumEntries[0].Substring(0,64)
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected) { throw 'Candidate ZIP digest mismatch' }
+          node native/tests/consumer_zip_contract.cjs $zip
+          if ($LASTEXITCODE -ne 0) { throw 'Consumer ZIP contract failed' }
+          $target = Join-Path $env:RUNNER_TEMP ('chatatlas-release-smoke-' + [Guid]::NewGuid().ToString('N'))
+          try {
+            Expand-Archive -LiteralPath $zip -DestinationPath $target
+            $exe = Join-Path $target 'ChatAtlas/ChatAtlas.exe'
+            node native/tests/no_install_contract.cjs $exe
+            if ($LASTEXITCODE -ne 0) { throw 'Exact EXE import/source contract failed' }
+            & ./native/tests/no_install_runtime.ps1 -Exe $exe
+          } finally {
+            if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+          }
