@@ -17,4 +17,7 @@ build/database-contract-test: build/database.o build/platform.o tests/database_c
 test: build/core-test build/zip-bounds-test build/database-contract-test
 	./build/core-test
 	./build/zip-bounds-test
-	@d=$(mktemp -d); ./build/database-contract-test "$d"; status=$?; rm -rf "$d"; exit $status
+	$(MAKE) test-database
+.PHONY: test test-database
+test-database: build/database-contract-test
+	@d=$$(mktemp -d) || exit 1; ./build/database-contract-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
