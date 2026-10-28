@@ -1,0 +1,40 @@
+name: Capture published native release UI
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run the published alpha.2 executable and capture its own window
+        shell: powershell
+        env:
+          ATLAS_QA: ${{ runner.temp }}/chatatlas-native-ui
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'ChatAtlas-alpha2-published.zip'
+          Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.2/ChatAtlas-0.3.1-alpha.2-Windows-x64-candidate.zip' -OutFile $zip
+          $expected = '359ace24635feb7de054898ee0a21d20351e2a730c79f9581c9bbe90772ec8e7'
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -cne $expected) { throw 'Published release digest mismatch' }
+          node native/tests/consumer_zip_contract.cjs $zip
+          if ($LASTEXITCODE -ne 0) { throw 'Published ZIP contract failed' }
+          $target = Join-Path $env:RUNNER_TEMP ('chatatlas-published-ui-' + [Guid]::NewGuid().ToString('N'))
+          try {
+            Expand-Archive -LiteralPath $zip -DestinationPath $target
+            & ./native/tests/no_install_runtime.ps1 -Exe (Join-Path $target 'ChatAtlas/ChatAtlas.exe')
+          } finally {
+            if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
+          }
+      - name: Upload actual native window image
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ChatAtlas-native-alpha2-window
+          path: ${{ runner.temp }}/chatatlas-native-ui/*.png
+          if-no-files-found: warn
+          retention-days: 14

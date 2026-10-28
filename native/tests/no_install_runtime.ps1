@@ -37,6 +37,11 @@ public static class AtlasSmokeWindow {
  [DllImport("user32.dll", CharSet=CharSet.Unicode)]
  public static extern int GetClassName(IntPtr hwnd, StringBuilder value, int count);
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr hwnd, int id);
+ [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left, Top, Right, Bottom; }
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out Rect value);
+ [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr hwnd, IntPtr hdc, uint flags);
+ [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+ [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern bool SetWindowText(IntPtr hwnd, string text);
 }
 '@
  $start=New-Object Diagnostics.ProcessStartInfo
@@ -69,6 +74,37 @@ public static class AtlasSmokeWindow {
   Start-Sleep -Milliseconds 1000; $p.Refresh()
   if ($p.HasExited) { throw 'Native GUI did not remain alive' }
   if (@(Get-CimInstance Win32_Process -Filter ('ParentProcessId = '+$p.Id)).Count) { throw 'Unexpected child process while native GUI was idle' }
+  if ($env:ATLAS_QA) {
+   # Capture this process's real HWND only. Never copy the desktop or other apps.
+   [uint32]$owner=0
+   [void][AtlasSmokeWindow]::GetWindowThreadProcessId($p.MainWindowHandle,[ref]$owner)
+   if ($owner -ne $p.Id) { throw 'Screenshot window ownership changed' }
+   $folder=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,105)
+   if (![AtlasSmokeWindow]::SetWindowText($folder,'C:\ChatAtlas-Example')) { throw 'Could not set neutral screenshot input' }
+   # This is an input example, not a claim that this archive exists or was saved.
+   Start-Sleep -Milliseconds 250
+   $rect=New-Object 'AtlasSmokeWindow+Rect'
+   if (![AtlasSmokeWindow]::GetWindowRect($p.MainWindowHandle,[ref]$rect)) { throw 'Native screenshot bounds unavailable' }
+   $width=$rect.Right-$rect.Left; $height=$rect.Bottom-$rect.Top
+   if ($width -lt 600 -or $height -lt 400 -or $width -gt 4096 -or $height -gt 4096) { throw 'Unexpected native screenshot dimensions' }
+   Add-Type -AssemblyName System.Drawing
+   $bitmap=New-Object -TypeName System.Drawing.Bitmap -ArgumentList @([int]$width,[int]$height)
+   $graphics=[Drawing.Graphics]::FromImage($bitmap)
+   try {
+    $graphics.Clear([Drawing.Color]::Magenta)
+    $hdc=$graphics.GetHdc()
+    try { $rendered=[AtlasSmokeWindow]::PrintWindow($p.MainWindowHandle,$hdc,0) } finally { $graphics.ReleaseHdc($hdc) }
+    if (!$rendered) { throw 'PrintWindow failed; no substitute screenshot created' }
+    $colors=New-Object 'System.Collections.Generic.HashSet[int]'
+    for($y=0;$y -lt $height;$y+=7) { for($x=0;$x -lt $width;$x+=7) { [void]$colors.Add($bitmap.GetPixel($x,$y).ToArgb()) } }
+    if ($colors.Count -lt 8) { throw 'Native screenshot is blank or insufficiently rendered' }
+    [void][IO.Directory]::CreateDirectory($env:ATLAS_QA)
+    $image=Join-Path $env:ATLAS_QA 'atlas-native-windows.png'
+    $bitmap.Save($image,[Drawing.Imaging.ImageFormat]::Png)
+    if ((Get-Item -LiteralPath $image).Length -lt 4096) { throw 'Native screenshot file is unexpectedly empty' }
+    Write-Output ('Captured actual ChatAtlas startup HWND: '+$width+'x'+$height+'; synthetic input path only.')
+   } finally { $graphics.Dispose(); $bitmap.Dispose() }
+  }
   if (!$p.CloseMainWindow()) { throw 'Native GUI refused graceful close' }
   if (!$p.WaitForExit(10000) -or $p.ExitCode -ne 0) { throw 'Native GUI did not close cleanly' }
   Write-Output 'Native GUI main HWND/title, required controls, idle survival and graceful close passed under isolated developer environment.'
