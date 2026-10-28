@@ -47,11 +47,11 @@
 
 ## 畫面預覽
 
-以下五張是 alpha.5 程式來源 `c317d577` 的實際執行畫面。兩張原生圖來自 Native CI 的 `exact-release-smoke` 工作，以 `ATLAS_QA` 啟用測試流程，執行實際封裝的 EXE；三張離線 HTML 圖來自同一來源的瀏覽器測試。全部使用人工資料，不是設計稿或真實 LINE 採集證明。
+以下五張是 alpha.6 程式來源 `81c9dbc4` 的實際執行畫面。兩張原生圖來自 Native CI 的 `exact-release-smoke` 工作，以 `ATLAS_QA` 啟用測試流程，執行實際封裝的 EXE；三張離線 HTML 圖來自同一來源的瀏覽器測試。全部使用人工資料，不是設計稿或真實 LINE 採集證明。
 
 ### Windows 原生程式
 
-![alpha.5 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha5.png)
+![alpha.6 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha6.png)
 
 原生啟動畫面尚未連接 LINE，不等於已完成真實採集。真正預設保存位置為 EXE 旁的 `ChatAtlasData/Collections`。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
 
@@ -59,13 +59,13 @@
 
 ### 採集紀錄
 
-![alpha.5 實際封裝 EXE 的採集紀錄畫面，三筆人工整理紀錄](docs/screenshots/windows-history-alpha5.png)
+![alpha.6 實際封裝 EXE 的採集紀錄畫面，三筆人工整理紀錄](docs/screenshots/windows-history-alpha6.png)
 
 測試透過實際視窗控制項選取人工收藏、切換採集紀錄分頁並讀取三筆紀錄，不是把文字貼到畫面。這證明人工收藏的紀錄動線，不代表已連接真實 LINE。
 
 ### 離線關聯地圖
 
-![alpha.5 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha5.png)
+![alpha.6 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha6.png)
 
 - 點人物、關鍵字或附件，看相關內容與原文。
 - 切換「閱讀內容」或「圖片與檔案」，不用在地圖裡找每一則訊息。
@@ -77,11 +77,11 @@
 
 ### 閱讀內容
 
-![alpha.5 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha5.png)
+![alpha.6 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha6.png)
 
 ### 手機寬度
 
-![alpha.5 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha5.png)
+![alpha.6 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha6.png)
 
 手機寬度圖僅展示閱讀頁布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
 
@@ -108,7 +108,9 @@
 
 ## 驗證狀態
 
-alpha.6 的最終來源、原生 Windows 執行與離線瀏覽器驗收仍待本版 CI 完成；上方暫時保留明確標記為 alpha.5 的歷史實際截圖，不把舊截圖或舊測試冒充本版成果。發布前會更新為本版人工資料實際畫面。
+程式來源 `81c9dbc41d085296a93ca2c3c78ef0768a447052` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713161892) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713448403) 各三個工作均通過。Windows 實際通過附件路徑整合 120 項、完整備份匯入 155 項、ZIP 57 項及原有核心、歷史與可攜 GUI 測試；實際封裝 EXE 載入三筆人工採集紀錄並產生上方原生畫面。離線瀏覽器通過正常操作與 CSP 外部資源阻擋測試。這不是全平台、全新 Windows 安裝環境或真實 LINE 採集驗收。
+
+文件與五張截圖加入後，仍對最終來源重新執行 CI、建置及封裝；最終發布只採用最終來源的原始 CI 產物，不直接發布較早候選包。
 
 本版應核對的項目包括：
 

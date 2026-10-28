@@ -1,10 +1,10 @@
-# 0.3.1-alpha.5 候選版狀態
+# 0.3.1-alpha.6 候選版狀態
 
-更新：2026-10-28。alpha.5 程式與文件正在整合，最終發布產物仍須重新驗收；是否已發布與最後驗收狀態，以對應 Release 頁為準。這是實驗預覽版，不是已完成的 LINE 備份工具。
+更新：2026-10-28。alpha.6 程式與文件正在整合，最終發布產物仍須重新驗收；是否已發布與最後驗收狀態，以對應 Release 頁為準。這是實驗預覽版，不是已完成的 LINE 備份工具。
 
 ## 本輪範圍
 
-[採集歷史、私人匯入與已核實的操作修正](ALPHA5_REVIEW.md)採先查證、再修改的流程。繼續維持 EXE 旁 ChatAtlasData、無 AppData fallback、不改既有資料夾 ACL、不安裝套件、HTML 無外部 CDN。
+[附件路徑契約、ZIP 資產一致性與修補回歸](ALPHA6_REVIEW.md)採先查證、再修改的流程。繼續維持 EXE 旁 ChatAtlasData、無 AppData fallback、不改既有資料夾 ACL、不安裝套件、HTML 無外部 CDN。
 
 本版的全部 CI、原生建置與封裝不執行 Python。舊 Python 來源只保留歷史參考，不是使用者啟動入口。
 
@@ -21,22 +21,28 @@
 
 ## 本版程式驗收
 
-程式來源 `c317d577ace3c1136162e4c14c9b89e465fc0198` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40680881996) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40681046984) 各三個工作均成功。
+程式來源 `81c9dbc41d085296a93ca2c3c78ef0768a447052` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713161892) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713448403) 各三個工作均成功。
 
 | 驗收 | Linux | Windows |
 | --- | --- | --- |
 | 原生核心 | 132 | 127 |
-| ZIP 邊界 | 35 | 35 |
+| 純附件路徑契約 | 35 | 35 |
+| 附件路徑整合 | 121 | 120 |
+| ZIP 邊界 | 57 | 57 |
 | Store 取消／發布 | 27 | 27 |
-| 完整備份匯入 | 43 | 91 |
+| 完整備份匯入 | 107 | 155 |
 | 歷史／文字模式／格式升級 | 62 | 62 |
 | 同程序 GUI／DPI／流程 | 不適用 | 91 |
 
 資料庫型別、訊息值域、路徑、Windows ACL／別名、UIA 合成控制及離線 file:// 閱讀回歸亦通過。瀏覽器正常測試流程無外部請求，注入的外部資源被 CSP 拒絕；不能由此宣稱所有可能環境皆不連網。
 
-Native 的 `exact-release-smoke` 工作 `122795602487` 使用實際封裝 EXE，驗證隔離開發環境下的人工 demo/check、GUI 啟動／關閉、可攜移動、唯讀位置拒絕，以及 `ATLAS_QA` 啟用的人工收藏採集紀錄動線；五張新版畫面均保留原始截圖。不是乾淨作業系統認證、實體多螢幕或真實 LINE 測試。
+Native 的 `exact-release-smoke` 工作 `122911277624` 使用實際封裝 EXE，驗證隔離開發環境下的人工 demo/check、GUI 啟動／關閉、可攜移動、唯讀位置拒絕，以及 `ATLAS_QA` 啟用的人工收藏採集紀錄動線；五張新版畫面均保留原始截圖。不是乾淨作業系統認證、實體多螢幕或真實 LINE 測試。
 
 上述是程式凍結點的實測證據。文件／截圖整合後仍重跑最終來源的全部流程，Release 只使用該最終流程的四個原始資產。
+
+## alpha.5 歷史驗收
+
+[alpha.5 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.5) 綁定來源 `5b9380c71137c0bc47eb4b39fe1db2af1e4c3189`；其資產、CI 與截圖僅屬該版本，不沿用作 alpha.6 驗收。
 
 ## alpha.4 歷史驗收
 

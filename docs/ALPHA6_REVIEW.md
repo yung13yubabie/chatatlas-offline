@@ -32,3 +32,11 @@ Linux／Windows 測試接入既有 CI；最終通過、失敗或跳過以本版�
 此契約是儲存格式一致性，不是惡意內容偵測：`.bin` 可含任意位元組，另存可保留原始檔名／副檔名。沒有新增執行附件、防毒、加密、完整 LINE 歷史續傳或新歷史 UI。真實 LINE 採集、所有系統相容性、同帳號競態與全程離線仍不作絕對保證；Authenticode 未簽章、CFG 未啟用。
 
 本輪只改確證問題、必要接線與測試、版本和文件。已發布的 alpha.1 至 alpha.5 tag、Release 與資產保持不變。
+
+## 修補本身的回歸檢查
+
+第一次候選 `db8f0c36` 的 Linux 與瀏覽器工作通過，Windows 工作則在新增 fixture 的復原檢查失敗，沒有據此發布：Windows 的 `.BIN` 與 `.bin` 可能是同一實體檔案，測試無條件清理別名會誤刪自己建立的合法原檔。修正後先以實體檔案等同性辨識別名，僅清理 fixture 明確新建的獨立副本；匯入測試同時避免對同檔別名執行複製。資料庫中故意不合規的原字串仍保留，沒有放寬正式路徑規則或移除斷言。
+
+另將自有 `ChatAtlas.Desktop` manifest 版本對齊 `VERSION`，並加入資源及自有 assembly 的版本契約；Common-Controls 相依版本、DPI 和權限設定不變。這是發布中繼資料一致性，不是資安漏洞。修正範圍見 [四檔修正差異](https://github.com/yung13yubabie/chatatlas-offline/commit/81c9dbc41d085296a93ca2c3c78ef0768a447052)。最終驗收需使用修正後的 CI，不沿用失敗候選結果。
+
+修正來源 `81c9dbc41d085296a93ca2c3c78ef0768a447052` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713161892) 及 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713448403) 各三個工作均通過。Windows 實際執行附件路徑整合 120 項、匯入 155 項、ZIP 57 項與純路徑 35 項；實際封裝 EXE 的採集紀錄頁載入三筆人工資料。五張新截圖來自此來源，並非舊圖改標。加入文件後仍對最終來源重新建置、驗證及簽發建置來源證明。
