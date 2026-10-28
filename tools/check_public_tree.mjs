@@ -25,6 +25,11 @@ const copyrightHashes={
 };
 // Reviewed artificial-data screenshots only; arbitrary binary documentation is rejected.
 const documentationImages={
+  "docs/screenshots/windows-native-alpha5.png": "d3c967a51a12ff03b80a22c3474b7fcea9e70e5ff7b2eb3df96ef2d946a9850b",
+  "docs/screenshots/windows-history-alpha5.png": "c3f53bbb2b3c710d79b74c9ac3c321207277c63e4d82f5c315261a222f7be7e3",
+  "docs/screenshots/offline-map-alpha5.png": "89cd1029e8c7ab29b22aca2735c576e69d695c7f8760ca5c23fda36998348ca4",
+  "docs/screenshots/offline-reading-alpha5.png": "4a04699a6db2ddd2600b97d4077d4c5d9d5268118bb0374c12b15cb4a9e654bf",
+  "docs/screenshots/offline-mobile-alpha5.png": "3d52c42f50e42b8f537a16467d573bbf3ddbab44ef2218339aad76bb1f447dd9",
   "docs/screenshots/windows-native-alpha4.png": "ad50d0f54be30e6f3ecd1167f8465601fe7a3584441c957d09118173fe737cfc",
   "docs/screenshots/offline-map-alpha4.png": "7cd8d5ac3d914be51a90b716e68ee2f10e92353791f6c0607780068ace660906",
   "docs/screenshots/offline-reading-alpha4.png": "c1e0299c9468c537c28c8929f565df09c2b7ee2b003fbc1bf3887b02caaf9ae0",

@@ -47,19 +47,25 @@
 
 ## 畫面預覽
 
-以下暫留前版 alpha.4 的實際 CI 執行畫面（不是 alpha.5 新功能畫面），原生圖來自實際封裝的 EXE，不是設計稿，也不是替舊圖改標版本。閱讀資料全部是人工範例。
+以下五張是 alpha.5 程式來源 `c317d577` 的實際執行畫面。兩張原生圖來自 Native CI 的 `exact-release-smoke` 工作，以 `ATLAS_QA` 啟用測試流程，執行實際封裝的 EXE；三張離線 HTML 圖來自同一來源的瀏覽器測試。全部使用人工資料，不是設計稿或真實 LINE 採集證明。
 
 ### Windows 原生程式
 
-![alpha.4 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha4.png)
+![alpha.5 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha5.png)
 
-原生啟動畫面尚未連接 LINE，不等於已完成真實採集。欄位中的 `C:\ChatAtlas-Example` 是避免暴露 CI 帳號路徑的人工輸入，不是預設保存位置；真正預設位置為 EXE 旁的 `ChatAtlasData/Collections`。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
+原生啟動畫面尚未連接 LINE，不等於已完成真實採集。真正預設保存位置為 EXE 旁的 `ChatAtlasData/Collections`。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
 
-[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659516136) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40659395672)
+[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40681046984) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40680881996)
+
+### 採集紀錄
+
+![alpha.5 實際封裝 EXE 的採集紀錄畫面，三筆人工整理紀錄](docs/screenshots/windows-history-alpha5.png)
+
+測試透過實際視窗控制項選取人工收藏、切換採集紀錄分頁並讀取三筆紀錄，不是把文字貼到畫面。這證明人工收藏的紀錄動線，不代表已連接真實 LINE。
 
 ### 離線關聯地圖
 
-![alpha.4 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha4.png)
+![alpha.5 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha5.png)
 
 - 點人物、關鍵字或附件，看相關內容與原文。
 - 切換「閱讀內容」或「圖片與檔案」，不用在地圖裡找每一則訊息。
@@ -71,11 +77,11 @@
 
 ### 閱讀內容
 
-![alpha.4 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha4.png)
+![alpha.5 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha5.png)
 
 ### 手機寬度
 
-![alpha.4 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha4.png)
+![alpha.5 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha5.png)
 
 手機寬度圖僅展示閱讀頁布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
 
@@ -84,7 +90,7 @@
 ## alpha.5 更新範圍
 
 - **採集紀錄：** 查看已結束或中斷的整理工作，保留或刪除歷史列。刪紀錄不刪聊天與附件，也不清除去重索引；可套用舊選項後再自行開始。
-- **對話與附件分開選：** 可更新同識別的對話，或不保存新對話文字；後者仍保留附件必要的最小關聯，離線頁標示「未保存對話文字」。再次整理會校驗既有完整附件，而非只憑檔名跳過。
+- **對話文字保存模式：** 可更新同識別的對話，或不保存新對話文字。後者適用於 message／thread，保留附件必要的最小關聯，離線頁標示「未保存對話文字」；已選取的記事本、留言等其他分類仍按原選項處理，不代表完全不讀取文字，也不是另有「只存文字、不下載附件」開關。再次整理會校驗既有完整附件，而非只憑檔名跳過。
 - **匯入完整備份：** 將已解壓、含資料庫的完整備份複製成新的私人收藏，不更動來源內容或權限；閱讀頁使用本版可信資源重建。包內 HTML-only 人工範例不是可續抓的資料庫備份。
 - **取消、停止與狀態：** 取消建立收藏不再提前保存偏好；停止採集不再自動接著重建整份網頁。離線頁顯示已知採集範圍、狀態和待補原因，不把「完成」當成全部歷史都已保存。
 
@@ -96,7 +102,9 @@
 
 ## 驗證狀態
 
-alpha.5 的最終來源、原生 Windows 執行、瀏覽器操作與新截圖仍待本輪 CI 驗收；不可沿用 alpha.4 的成功紀錄。文件與圖片整合後仍須重新建置同一份最終來源。
+程式來源 `c317d577ace3c1136162e4c14c9b89e465fc0198` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40680881996) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40681046984) 各三個工作均通過。包括 Linux／Windows 核心、歷史 62 項、Store 取消 27 項、Windows GUI 91 項、完整備份匯入、離線瀏覽器，以及實際封裝 EXE 的可攜與採集紀錄畫面驗證。這不是全平台或真實 LINE 驗收。
+
+文件與五張截圖加入後，仍對最終來源重新執行 CI、建置及封裝；最終發布以 Release 綁定的來源與產物為準，不直接發布較早候選包。
 
 本版應核對的項目包括：
 
