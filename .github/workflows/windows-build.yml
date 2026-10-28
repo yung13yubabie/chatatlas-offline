@@ -20,6 +20,7 @@ jobs:
           persist-credentials: false
       - run: node tools/check_public_tree.mjs
       - run: node tools/package_test.mjs
+      - run: node tools/download_contract_test.cjs
       - run: make -C native test build/atlas-cli
       - run: node tools/graph_model_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs
@@ -49,6 +50,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
   windows-native:
+    env:
+      ATLAS_PORTABLE: '1'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -70,6 +73,9 @@ jobs:
         shell: powershell
         run: ./native/tests/no_install_runtime.ps1 -Exe native/out/ChatAtlas.exe
   exact-release-smoke:
+    env:
+      ATLAS_PORTABLE: '1'
+      ATLAS_QA: ${{ runner.temp }}/chatatlas-release-ui
     needs: build
     runs-on: windows-latest
     timeout-minutes: 15
@@ -107,3 +113,11 @@ jobs:
           } finally {
             if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
           }
+      - name: Upload exact release native window image
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ChatAtlas-exact-release-native-window
+          path: ${{ runner.temp }}/chatatlas-release-ui/*.png
+          if-no-files-found: warn
+          retention-days: 14

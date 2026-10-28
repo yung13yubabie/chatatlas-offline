@@ -157,34 +157,36 @@ window.VaultDownloads = (catalog, notify) => {
    const key=sha+":"+index,script=document.createElement("script");let received=false;
    const timer=setTimeout(()=>finish(Error("Missing part")),15000);
    const finish=error=>{clearTimeout(timer);waiting.delete(key);script.remove();if(error)reject(error);};
-   waiting.set(key,{receive:value=>{if(received||typeof value!=="string"||value.length>1048576||!/^[A-Za-z0-9+/]*={0,2}$/.test(value)){finish(Error("Invalid part"));return;}received=true;resolve(value);}});
+   waiting.set(key,{cancel:()=>finish(new DOMException("Cancelled","AbortError")),receive:value=>{if(received||typeof value!=="string"||value.length>1048576||!/^[A-Za-z0-9+/]*={0,2}$/.test(value)){finish(Error("Invalid part"));return;}received=true;resolve(value);}});
    script.src=entry.path;script.onload=()=>finish(received?null:Error("Missing data"));script.onerror=()=>finish(Error("Missing file"));document.head.appendChild(script);
   });
   stop();const raw=atob(encoded),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
-  if(bytes.length!==entry.size||!crypto.subtle||hex(await crypto.subtle.digest("SHA-256",bytes))!==entry.sha256)throw Error("Integrity check failed");
-  return bytes;
+  if(bytes.length!==entry.size||!window.crypto?.subtle||hex(await window.crypto.subtle.digest("SHA-256",bytes))!==entry.sha256)throw Error("Integrity check failed");
+  stop();return bytes;
  }
  async function saveFile(attachment){
   const entry=catalog[attachment.download];
   if(!entry||entry.sha256!==attachment.download||!Array.isArray(entry.parts)||!entry.parts.length)throw Error("No download data");
+  if(!Number.isSafeInteger(entry.size)||entry.size<0)throw Error("Invalid size");
+  if(typeof window.crypto?.subtle?.digest!=="function"){const error=Error();error.cryptoRequired=true;throw error;}
   let output=null;const chunks=[];let size=0;
   if(entry.size>64*1024*1024){
-   if(!window.showSaveFilePicker){const error=Error();error.browserRequired=true;throw error;}
+   if(typeof window.showSaveFilePicker!=="function"){const error=Error();error.browserRequired=true;throw error;}
    const handle=await window.showSaveFilePicker({suggestedName:attachment.name});
-   output=await handle.createWritable();
+   stop();output=await handle.createWritable();
   }
   try{
    for(let n=0;n<entry.parts.length;n++){
     stop();notify(`正在準備 ${attachment.name}（${n+1} / ${entry.parts.length}）`);
-    const bytes=await part(entry.sha256,n,entry.parts[n]);size+=bytes.length;
+    const bytes=await part(entry.sha256,n,entry.parts[n]);size+=bytes.length;if(size>entry.size||(!output&&size>64*1024*1024))throw Error("Wrong size");
     if(output)await output.write(bytes);else chunks.push(bytes);
    }
    stop();if(size!==entry.size)throw Error("Wrong size");
    if(output){await output.close();output=null;}
    else{
     const blob=new Blob(chunks,{type:"application/octet-stream"});
-    if(hex(await crypto.subtle.digest("SHA-256",await blob.arrayBuffer()))!==entry.sha256)throw Error("Wrong checksum");
-    const url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=attachment.name;
+    if(hex(await window.crypto.subtle.digest("SHA-256",await blob.arrayBuffer()))!==entry.sha256)throw Error("Wrong checksum");
+    stop();const url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download=attachment.name;
     document.body.appendChild(link);link.click();link.remove();urls.push(url);
     while(urls.length>4)URL.revokeObjectURL(urls.shift());
     setTimeout(()=>{URL.revokeObjectURL(url);urls=urls.filter(x=>x!==url);},60000);
@@ -193,13 +195,13 @@ window.VaultDownloads = (catalog, notify) => {
  }
  return {
   busy:()=>busy,
-  cancel:()=>{aborted=true;notify("正在停止另存，已完成的檔案仍會保留。");},
+  cancel:()=>{if(!busy)return;aborted=true;for(const item of [...waiting.values()])item.cancel();notify("正在停止另存，已完成的檔案仍會保留。");},
   save:async attachments=>{
    if(busy){notify("正在另存檔案，請等目前操作完成。");return;}
    if(attachments.length>1&&attachments.some(a=>catalog[a.download]?.size>64*1024*1024)){notify("選取內容含大檔案，請分別按各檔案的「另存檔案」，或用桌面程式製作 ZIP。");return;}
    busy=true;aborted=false;let count=0;
    try{for(const a of attachments){stop();await saveFile(a);count++;}notify(`已準備 ${count} 個檔案，請查看瀏覽器的下載項目或選定位置。`);}
-   catch(error){notify(error.name==="AbortError"?"另存已取消，已完成的檔案仍會保留。":error.browserRequired?"這份檔案較大，請用新版 Edge 或 Chrome 開啟此頁後另存；原檔仍在附件資料夾。":"無法完成另存，請確認整個封存資料夾都在，並在桌面程式執行檔案檢查。");}
+   catch(error){notify(error.name==="AbortError"?"另存已取消，已完成的檔案仍會保留。":error.cryptoRequired?"這個瀏覽器無法驗證檔案，請用新版 Edge 或 Chrome，或在桌面程式檢查後取用附件。":error.browserRequired?"這份檔案較大，請用新版 Edge 或 Chrome 開啟此頁後另存；原檔仍在附件資料夾。":"無法完成另存，請確認整個封存資料夾都在，並在桌面程式執行檔案檢查。");}
    finally{busy=false;}
   }
  };
@@ -272,6 +274,7 @@ public static class VaultNative {
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint command);
  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr h, int command);
 }
 '@
@@ -317,6 +320,46 @@ function Assert-SaveDestination($valuePattern,$dest) {
 function Get-LineDialogs {
  $wins=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
  return @($wins | Where-Object { $_.Current.ProcessId -eq $script:ProcessId -and $_.Current.ClassName -eq '#32770' })
+}
+# Only a new foreground confirmation owned by this exact Save As window is ours.
+# Unknown dialogs and any window predating the download are never closed.
+function Assert-OwnedSaveConfirmation($confirmation,$dialog,$dialogKey,$dialogHandle) {
+ Assert-Window
+ $saved=$dialog.Current;$c=$confirmation.Current
+ if ((Node-Key $dialog) -cne $dialogKey -or $saved.NativeWindowHandle -ne $dialogHandle -or $saved.ProcessId -ne $script:ProcessId -or $saved.ClassName -cne '#32770' -or $saved.Name -cnotin $script:SaveDialogNames) { throw 'save_dialog_unsupported' }
+ if ($c.ProcessId -ne $script:ProcessId -or $c.ClassName -cne '#32770' -or $c.NativeWindowHandle -eq 0 -or $c.NativeWindowHandle -eq $dialogHandle -or !$c.IsEnabled -or $c.IsOffscreen -or $c.Name -cnotin @('Confirm Save As','Confirm Save as','確認另存新檔','確認另存為','確認另存为','确认另存为','名前を付けて保存の確認')) { throw 'save_dialog_unsupported' }
+ if ([VaultNative]::GetWindow([IntPtr]$c.NativeWindowHandle,4) -ne [IntPtr]$dialogHandle -or [VaultNative]::GetForegroundWindow() -ne [IntPtr]$c.NativeWindowHandle) { throw 'focus_changed' }
+}
+function Wait-SaveCompletion($dialog,$valuePattern,$dest,$dialogKey,$dialogHandle) {
+ $deadline=[DateTime]::UtcNow.AddSeconds(15)
+ while ([DateTime]::UtcNow -lt $deadline) {
+  Assert-Window
+  $windows=@(Get-LineDialogs)
+  $remaining=@($windows | Where-Object { (Node-Key $_) -ceq $dialogKey -and $_.Current.NativeWindowHandle -eq $dialogHandle })
+  $extra=@($windows | Where-Object { (Node-Key $_) -cne $dialogKey -or $_.Current.NativeWindowHandle -ne $dialogHandle })
+  if ($extra.Count -ne 0) {
+   if ($extra.Count -ne 1 -or $remaining.Count -ne 1) { throw 'save_dialog_unsupported' }
+   $confirmation=$extra[0]
+   Assert-OwnedSaveConfirmation $confirmation $dialog $dialogKey $dialogHandle
+   if ($valuePattern.Current.Value -cne $dest) { throw 'invalid_destination' }
+   $close=$confirmation.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+   Assert-OwnedSaveConfirmation $confirmation $dialog $dialogKey $dialogHandle
+   # Close means cancel; never invoke Yes/Replace, remove or replace a target file.
+   $close.Close()
+   # Only close the original tracked Save As if focus and its identity still match.
+   try {
+    Assert-SaveDialog $dialog
+    if ((Node-Key $dialog) -cne $dialogKey -or $dialog.Current.NativeWindowHandle -ne $dialogHandle -or $valuePattern.Current.Value -cne $dest) { throw 'save_dialog_unsupported' }
+    $dialog.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+   } catch { }
+   throw 'save_conflict'
+  }
+  # Native caller separately waits for file stability and checks source size/hash.
+  if ($remaining.Count -eq 0) { return }
+  Start-Sleep -Milliseconds 100
+ }
+ # A timeout does not authorize closing an unrecognized or user-changed window.
+ throw 'save_incomplete'
 }
 function Resolve-Node($token) {
  Assert-Window
@@ -477,7 +520,9 @@ while ($null -ne ($line=[Console]::ReadLine())) {
     # UIA cannot make this sequence atomic against a malicious same-user process.
     Assert-SaveDialog $dialog
     Assert-SaveDestination $valuePattern $dest
+    $dialogKey=Node-Key $dialog;$dialogHandle=$dialog.Current.NativeWindowHandle
     $invoke.Invoke()
+    Wait-SaveCompletion $dialog $valuePattern $dest $dialogKey $dialogHandle
     $result=$true
    }
    'close' { exit 0 }
@@ -486,7 +531,7 @@ while ($null -ne ($line=[Console]::ReadLine())) {
   @{ok=$true;result=$result} | ConvertTo-Json -Depth 20 -Compress | ForEach-Object { [Console]::WriteLine($_) }
  } catch {
   # Never return exception text, which can contain private paths or UI contents.
-  $allowed=@('not_connected','wrong_process','wrong_window','focus_changed','stale_node','tree_limit','request_limit','line_window_ambiguous','publisher_unverified','selection_unsupported','scroll_unsupported','navigation_not_allowed','download_action_not_allowed','invalid_destination','linked_destination','save_dialog_missing','save_dialog_unsupported','save_button_unsupported','unknown_action')
+  $allowed=@('not_connected','wrong_process','wrong_window','focus_changed','stale_node','tree_limit','request_limit','line_window_ambiguous','publisher_unverified','selection_unsupported','scroll_unsupported','navigation_not_allowed','download_action_not_allowed','invalid_destination','linked_destination','save_dialog_missing','save_dialog_unsupported','save_button_unsupported','save_conflict','save_incomplete','unknown_action')
   $code=if($_.Exception.Message -in $allowed){$_.Exception.Message}else{'uia_operation_failed'}
   @{ok=$false;code=$code} | ConvertTo-Json -Compress | ForEach-Object { [Console]::WriteLine($_) }
  }

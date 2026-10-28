@@ -23,3 +23,18 @@ assert(!cpp.includes('[Console]::InputEncoding='));
 assert(!ps.includes('[Console]::InputEncoding ='));
 assert(ps.includes('[Console]::SetIn($ChatAtlasInput)'));
 assert(ps.includes('[Console]::SetOut($ChatAtlasOutput)'));
+
+// Regression evidence: these limits already existed in the immutable alpha.2.
+assert(cpp.includes('error=CreateFileW(L"NUL"'));
+assert(cpp.includes('si.hStdError=error'));
+assert(cpp.includes('buffered.size()>16*1024*1024'));
+assert(cpp.includes('std::chrono::seconds(35)'));
+assert(cpp.includes('PeekNamedPipe(output'));
+assert(cpp.includes('if(control)control->check()'));
+assert(!cpp.includes('errRead'));
+assert(ps.includes('Wait-SaveCompletion $dialog $valuePattern $dest $dialogKey $dialogHandle'));
+assert(ps.includes('Assert-OwnedSaveConfirmation $confirmation $dialog $dialogKey $dialogHandle'));
+assert(ps.includes('[VaultNative]::GetWindow([IntPtr]$c.NativeWindowHandle,4)'));
+assert(ps.includes('$close.Close()'));
+assert(!ps.includes("Invoke-Item"));
+console.log('Bridge limits and narrowly owned confirmation source contracts passed.');

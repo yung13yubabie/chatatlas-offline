@@ -1,5 +1,6 @@
-param([Parameter(Mandatory=$true)][string]$Exe)
+param([Parameter(Mandatory=$true)][string]$Exe,[switch]$Portable)
 $ErrorActionPreference='Stop'
+$portableMode=$Portable.IsPresent -or $env:ATLAS_PORTABLE -eq '1'
 # Artificial data only. No tool installation, network setting, or real LINE access.
 $original=(Resolve-Path -LiteralPath $Exe).Path
 $fixture=Join-Path ([IO.Path]::GetTempPath()) ('chatatlas-clean-smoke-'+[Guid]::NewGuid().ToString('N'))
@@ -26,9 +27,9 @@ function Invoke-Isolated([string]$mode,[bool]$expectSuccess=$true) {
   return $stdout.Result
  } finally { $p.Dispose() }
 }
-function Test-IsolatedGui {
- # Run only on an ephemeral CI runner. GUI startup may create ordinary per-user
- # preferences in that runner's LocalAppData; these are not installed packages.
+function Test-IsolatedGui([string]$ExpectedFolder='', [switch]$SkipCapture) {
+ # Legacy alpha.2 capture remains supported without -Portable.
+ if (-not ('AtlasSmokeWindow' -as [type])) {
  Add-Type @'
 using System;
 using System.Text;
@@ -46,8 +47,17 @@ public static class AtlasSmokeWindow {
  [DllImport("user32.dll", EntryPoint="SendMessageW", CharSet=CharSet.Unicode)]
  public static extern IntPtr ReadControlText(IntPtr hwnd, uint message, IntPtr wParam, StringBuilder text);
  [DllImport("user32.dll")] public static extern bool RedrawWindow(IntPtr hwnd, IntPtr rect, IntPtr region, uint flags);
+ [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam);
+ private delegate bool EnumWindowCallback(IntPtr hwnd, IntPtr data);
+ [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowCallback callback, IntPtr data);
+ public static IntPtr[] WindowsForProcess(uint processId) {
+  var result = new System.Collections.Generic.List<IntPtr>();
+  EnumWindows((hwnd, data) => { uint owner; GetWindowThreadProcessId(hwnd, out owner); if(owner == processId) result.Add(hwnd); return true; }, IntPtr.Zero);
+  return result.ToArray();
+ }
 }
 '@
+ }
  $start=New-Object Diagnostics.ProcessStartInfo
  $start.FileName=$copy; $start.WorkingDirectory=$bin; $start.UseShellExecute=$false
  $start.EnvironmentVariables.Clear()
@@ -78,7 +88,16 @@ public static class AtlasSmokeWindow {
   Start-Sleep -Milliseconds 1000; $p.Refresh()
   if ($p.HasExited) { throw 'Native GUI did not remain alive' }
   if (@(Get-CimInstance Win32_Process -Filter ('ParentProcessId = '+$p.Id)).Count) { throw 'Unexpected child process while native GUI was idle' }
-  if ($env:ATLAS_QA) {
+  if ($portableMode) {
+   $data=Join-Path $bin 'ChatAtlasData'
+   if (!(Test-Path -LiteralPath $data -PathType Container)) { throw 'Portable data folder missing beside EXE' }
+   if ((Get-Item -LiteralPath $data).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Portable data folder is a link' }
+   if (!$ExpectedFolder) { $ExpectedFolder=Join-Path $data 'Collections' }
+   $folderText=New-Object Text.StringBuilder 32768
+   [void][AtlasSmokeWindow]::ReadControlText([AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,105),0x000D,[IntPtr]$folderText.Capacity,$folderText)
+   if ([IO.Path]::GetFullPath($folderText.ToString()) -ine [IO.Path]::GetFullPath($ExpectedFolder)) { throw 'Portable default or moved preference points outside expected EXE data path' }
+  }
+  if ($env:ATLAS_QA -and !$SkipCapture) {
    # Capture this process's real HWND only. Never copy the desktop or other apps.
    [uint32]$owner=0
    [void][AtlasSmokeWindow]::GetWindowThreadProcessId($p.MainWindowHandle,[ref]$owner)
@@ -130,7 +149,69 @@ public static class AtlasSmokeWindow {
   $p.Dispose()
  }
 }
+function Get-LegacyAppDataSnapshot {
+ $old=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'ChatAtlas'
+ if (!(Test-Path -LiteralPath $old)) { return 'absent' }
+ $records=New-Object 'System.Collections.Generic.List[string]'
+ function Visit([string]$dir) {
+  foreach($item in Get-ChildItem -LiteralPath $dir -Force) {
+   if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Cannot safely snapshot linked legacy data in CI fixture' }
+   $relative=$item.FullName.Substring($old.Length)
+   if($item.PSIsContainer) { $records.Add('D|'+$relative); Visit $item.FullName }
+   else { $records.Add('F|'+$relative+'|'+(Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash+'|'+$item.LastWriteTimeUtc.Ticks) }
+  }
+ }
+ Visit $old
+ return 'present|'+(Get-Item -LiteralPath $old).LastWriteTimeUtc.Ticks+'|'+(($records | Sort-Object) -join "`n")
+}
+function Test-PortableReadOnly {
+ # Only a newly created test fixture receives a temporary deny-write ACE.
+ # Never change the source EXE directory, AppData, or any existing user folder.
+ $readOnly=Join-Path $fixture 'read-only-portable'
+ [void][IO.Directory]::CreateDirectory($readOnly)
+ $executable=Join-Path $readOnly 'ChatAtlas.exe'; Copy-Item -LiteralPath $original -Destination $executable
+ $before=Get-Acl -LiteralPath $readOnly
+ $locked=Get-Acl -LiteralPath $readOnly
+ $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
+ $rule=[Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::Write,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Deny)
+ $locked.AddAccessRule($rule)
+ $process=$null; $started=$false
+ try {
+  Set-Acl -LiteralPath $readOnly -AclObject $locked
+  $probe=Join-Path $readOnly 'must-not-write.tmp'; $denied=$false
+  try { [IO.File]::WriteAllText($probe,'synthetic') } catch {
+   if ($_.Exception -is [UnauthorizedAccessException] -or $_.Exception.InnerException -is [UnauthorizedAccessException]) { $denied=$true } else { throw }
+  }
+  if (!$denied) { throw 'Read-only fixture did not actually deny writes' }
+  $start=New-Object Diagnostics.ProcessStartInfo
+  $start.FileName=$executable; $start.WorkingDirectory=$readOnly; $start.UseShellExecute=$false
+  $start.EnvironmentVariables.Clear()
+  foreach($name in @('SystemRoot','WINDIR')) { $start.EnvironmentVariables[$name]=$env:SystemRoot }
+  $start.EnvironmentVariables['TEMP']=$fixture; $start.EnvironmentVariables['TMP']=$fixture
+  $start.EnvironmentVariables['PATH']=Join-Path $env:SystemRoot 'System32'
+  $process=New-Object Diagnostics.Process; $process.StartInfo=$start
+  if (!$process.Start()) { throw 'Read-only portable fixture did not start' }; $started=$true
+  $deadline=[DateTime]::UtcNow.AddSeconds(30)
+  while (!$process.HasExited -and [DateTime]::UtcNow -lt $deadline) {
+   foreach($window in [AtlasSmokeWindow]::WindowsForProcess([uint32]$process.Id)) {
+    $class=New-Object Text.StringBuilder 256
+    [void][AtlasSmokeWindow]::GetClassName($window,$class,$class.Capacity)
+    if($class.ToString() -ceq '#32770') { [void][AtlasSmokeWindow]::PostMessage($window,0x0010,[IntPtr]::Zero,[IntPtr]::Zero) }
+   }
+   Start-Sleep -Milliseconds 100; $process.Refresh()
+  }
+  if (!$process.HasExited) { throw 'Read-only portable startup did not fail closed' }
+  if ($process.ExitCode -eq 0) { throw 'Read-only portable startup incorrectly succeeded' }
+  if(Test-Path -LiteralPath (Join-Path $readOnly 'ChatAtlasData')) { throw 'Read-only portable startup created a data directory' }
+  Write-Output 'Read-only owned portable folder failed without creating data or selecting a fallback.'
+ } finally {
+  if ($started -and !$process.HasExited) { $process.Kill(); [void]$process.WaitForExit(5000) }
+  if ($process) { $process.Dispose() }
+  Set-Acl -LiteralPath $readOnly -AclObject $before
+ }
+}
 try {
+ if ($portableMode) { $legacyBefore=Get-LegacyAppDataSnapshot }
  [void](Invoke-Isolated '--check' $false)
  if (Test-Path -LiteralPath $archive) { throw 'Check created an absent archive' }
  $result=Invoke-Isolated '--demo'
@@ -140,6 +221,20 @@ try {
  if (@(Get-ChildItem -LiteralPath $bin -Force).Count -ne 1) { throw 'Unexpected runtime dependency in isolated binary folder' }
  Write-Output 'Single native EXE demo/check passed with only Windows System32 in PATH and no developer environment variables.'
  Test-IsolatedGui
+ if ($portableMode) {
+  $data=Join-Path $bin 'ChatAtlasData'
+  $unexpected=@(Get-ChildItem -LiteralPath $bin -Force | Where-Object { $_.Name -notin @('ChatAtlas.exe','ChatAtlasData') })
+  if ($unexpected.Count) { throw 'Unexpected files beside portable EXE' }
+  $preferences=Join-Path $data 'preferences.local.json'
+  [IO.File]::WriteAllText($preferences,'{"last_archive":"ChatAtlasData/Collections/Moved-synthetic","archive_base":"portable"}',(New-Object Text.UTF8Encoding($false)))
+  $moved=Join-Path $fixture 'moved-portable'
+  Move-Item -LiteralPath $bin -Destination $moved
+  $bin=$moved; $copy=Join-Path $bin 'ChatAtlas.exe'
+  Test-IsolatedGui -ExpectedFolder (Join-Path $bin 'ChatAtlasData/Collections/Moved-synthetic') -SkipCapture
+  Test-PortableReadOnly
+  if ((Get-LegacyAppDataSnapshot) -cne $legacyBefore) { throw 'Portable execution changed legacy LocalAppData ChatAtlas data' }
+  Write-Output 'Portable beside-EXE data, move/reopen preferences and unchanged legacy AppData passed.'
+ }
  Write-Output 'This hosted-runner smoke test is not a clean OS, full GUI interaction, LINE, or exhaustive network proof.'
 } finally {
  if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }

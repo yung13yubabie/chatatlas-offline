@@ -4,12 +4,12 @@ $tokens=$null; $errors=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $source),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw ($errors | Out-String) }
 # Load only pure guards; never execute the worker or contact a real LINE process.
-foreach ($name in @('Assert-Window','Assert-SaveDialog','Assert-SaveDestination')) {
+foreach ($name in @('Assert-Window','Assert-SaveDialog','Assert-SaveDestination','Assert-OwnedSaveConfirmation','Wait-SaveCompletion')) {
  $fn=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
  if (!$fn) { throw "Missing guard $name" }
  Invoke-Expression $fn.Extent.Text
 }
-Add-Type 'public static class VaultNative { public static System.IntPtr Foreground = new System.IntPtr(123); public static System.IntPtr GetForegroundWindow() { return Foreground; } }'
+Add-Type 'public static class VaultNative { public static System.IntPtr Foreground = new System.IntPtr(123); public static System.IntPtr Owner = new System.IntPtr(123); public static System.IntPtr GetWindow(System.IntPtr h, uint command) { return Owner; } public static System.IntPtr GetForegroundWindow() { return Foreground; } }'
 $script:ProcessId=42; $script:ProcessPath='C:\Synthetic\LINE.exe'
 $script:ProcessStarted=123
 $script:Main=[pscustomobject]@{Current=[pscustomobject]@{ProcessId=42}}
@@ -41,6 +41,54 @@ $value.Current.Value=$dest+'.changed'
 Expect-Error { Assert-SaveDestination $value $dest } 'invalid_destination'
 $value.Current.Value=$dest
 try { [IO.File]::WriteAllText($dest,'synthetic'); Expect-Error { Assert-SaveDestination $value $dest } 'invalid_destination' } finally { if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest } }
+
+# No UI automation is performed: synthetic identity/ownership guards only.
+function Node-Key($e) { return [string]$e.Current.NativeWindowHandle }
+$dialog=New-Dialog
+$confirmation=New-Dialog
+$confirmation.Current.Name='Confirm Save As';$confirmation.Current.NativeWindowHandle=124
+[VaultNative]::Foreground=[IntPtr]124
+Assert-OwnedSaveConfirmation $confirmation $dialog '123' 123
+Expect-Error { Assert-OwnedSaveConfirmation $confirmation $dialog 'wrong-runtime-id' 123 } 'save_dialog_unsupported'
+Expect-Error { Assert-OwnedSaveConfirmation $confirmation $dialog '123' 999 } 'save_dialog_unsupported'
+foreach ($change in @(@('Name','Open'),@('ClassName','NotADialog'),@('ProcessId',99),@('IsEnabled',$false),@('IsOffscreen',$true),@('NativeWindowHandle',0),@('NativeWindowHandle',123))) {
+ $bad=New-Dialog;$bad.Current.Name='Confirm Save As';$bad.Current.NativeWindowHandle=124;$bad.Current.($change[0])=$change[1]
+ Expect-Error { Assert-OwnedSaveConfirmation $bad $dialog '123' 123 } 'save_dialog_unsupported'
+}
+[VaultNative]::Owner=[IntPtr]999
+Expect-Error { Assert-OwnedSaveConfirmation $confirmation $dialog '123' 123 } 'focus_changed'
+[VaultNative]::Owner=[IntPtr]123;[VaultNative]::Foreground=[IntPtr]999
+Expect-Error { Assert-OwnedSaveConfirmation $confirmation $dialog '123' 123 } 'focus_changed'
+[VaultNative]::Foreground=[IntPtr]123
+
+# Simulated lifecycle: only test doubles receive Close(), never any real window.
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$script:ClosedConfirmation=0;$script:ClosedSave=0
+$closeConfirmation=[pscustomobject]@{}
+$closeConfirmation | Add-Member ScriptMethod Close { $script:ClosedConfirmation++;[VaultNative]::Foreground=[IntPtr]123 }
+$closeSave=[pscustomobject]@{}
+$closeSave | Add-Member ScriptMethod Close { $script:ClosedSave++ }
+$confirmation | Add-Member ScriptMethod GetCurrentPattern { param($pattern) return $closeConfirmation }
+$dialog | Add-Member ScriptMethod GetCurrentPattern { param($pattern) return $closeSave }
+$script:FakeDialogs=@($dialog,$confirmation)
+function Get-LineDialogs { return $script:FakeDialogs }
+[VaultNative]::Foreground=[IntPtr]124
+Expect-Error { Wait-SaveCompletion $dialog $value $dest '123' 123 } 'save_conflict'
+if ($script:ClosedConfirmation -ne 1 -or $script:ClosedSave -ne 1) { throw 'owned_confirmation_cancel_failed' }
+$script:ClosedConfirmation=0;$script:ClosedSave=0
+$confirmation.Current.Name='Unrelated user dialog'
+[VaultNative]::Foreground=[IntPtr]124
+Expect-Error { Wait-SaveCompletion $dialog $value $dest '123' 123 } 'save_dialog_unsupported'
+if ($script:ClosedConfirmation -or $script:ClosedSave) { throw 'unrelated_dialog_was_closed' }
+$confirmation.Current.Name='Confirm Save As'
+[VaultNative]::Owner=[IntPtr]999
+Expect-Error { Wait-SaveCompletion $dialog $value $dest '123' 123 } 'focus_changed'
+if ($script:ClosedConfirmation -or $script:ClosedSave) { throw 'foreign_owner_was_closed' }
+[VaultNative]::Owner=[IntPtr]123
+$script:FakeDialogs=@()
+Wait-SaveCompletion $dialog $value $dest '123' 123
+if ($script:ClosedConfirmation -or $script:ClosedSave) { throw 'completed_save_was_closed' }
 Write-Output 'Windows bridge guard tests passed; no real LINE UI was accessed.'
 # Exercise the actual C++ bootstrap with a harmless worker, including a queued request.
 $cpp=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/windows_source.cpp'))

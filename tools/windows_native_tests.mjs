@@ -1,3 +1,4 @@
+import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
@@ -13,3 +14,9 @@ run([...sources,'tests/windows_permissions_test.cpp','-ladvapi32','-o','build/wi
 execFileSync(path.join(ROOT,'native/build/windows-permissions-test.exe'),[],{stdio:'inherit'});
 run([...sources,'tests/core_test.cpp','-ladvapi32','-o','build/core-test.exe']);
 execFileSync(path.join(ROOT,'native/build/core-test.exe'),[],{stdio:'inherit'});
+
+run([...sources.filter(s=>s!=='src/zip.cpp'),'tests/zip_bounds_test.cpp','-ladvapi32','-o','build/zip-bounds-test.exe']);
+execFileSync(path.join(ROOT,'native/build/zip-bounds-test.exe'),[],{stdio:'inherit'});
+run(['src/database.cpp','src/platform.cpp','tests/database_contract_test.cpp','-ladvapi32','-o','build/database-contract-test.exe']);
+const databaseFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-db-contract-'));
+try{execFileSync(path.join(ROOT,'native/build/database-contract-test.exe'),[databaseFixture],{stdio:'inherit'});}finally{fs.rmSync(databaseFixture,{recursive:true,force:true});}

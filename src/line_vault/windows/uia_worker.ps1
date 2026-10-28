@@ -17,6 +17,7 @@ public static class VaultNative {
  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+ [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr h, uint command);
  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr h, int command);
 }
 '@
@@ -62,6 +63,46 @@ function Assert-SaveDestination($valuePattern,$dest) {
 function Get-LineDialogs {
  $wins=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
  return @($wins | Where-Object { $_.Current.ProcessId -eq $script:ProcessId -and $_.Current.ClassName -eq '#32770' })
+}
+# Only a new foreground confirmation owned by this exact Save As window is ours.
+# Unknown dialogs and any window predating the download are never closed.
+function Assert-OwnedSaveConfirmation($confirmation,$dialog,$dialogKey,$dialogHandle) {
+ Assert-Window
+ $saved=$dialog.Current;$c=$confirmation.Current
+ if ((Node-Key $dialog) -cne $dialogKey -or $saved.NativeWindowHandle -ne $dialogHandle -or $saved.ProcessId -ne $script:ProcessId -or $saved.ClassName -cne '#32770' -or $saved.Name -cnotin $script:SaveDialogNames) { throw 'save_dialog_unsupported' }
+ if ($c.ProcessId -ne $script:ProcessId -or $c.ClassName -cne '#32770' -or $c.NativeWindowHandle -eq 0 -or $c.NativeWindowHandle -eq $dialogHandle -or !$c.IsEnabled -or $c.IsOffscreen -or $c.Name -cnotin @('Confirm Save As','Confirm Save as','確認另存新檔','確認另存為','確認另存为','确认另存为','名前を付けて保存の確認')) { throw 'save_dialog_unsupported' }
+ if ([VaultNative]::GetWindow([IntPtr]$c.NativeWindowHandle,4) -ne [IntPtr]$dialogHandle -or [VaultNative]::GetForegroundWindow() -ne [IntPtr]$c.NativeWindowHandle) { throw 'focus_changed' }
+}
+function Wait-SaveCompletion($dialog,$valuePattern,$dest,$dialogKey,$dialogHandle) {
+ $deadline=[DateTime]::UtcNow.AddSeconds(15)
+ while ([DateTime]::UtcNow -lt $deadline) {
+  Assert-Window
+  $windows=@(Get-LineDialogs)
+  $remaining=@($windows | Where-Object { (Node-Key $_) -ceq $dialogKey -and $_.Current.NativeWindowHandle -eq $dialogHandle })
+  $extra=@($windows | Where-Object { (Node-Key $_) -cne $dialogKey -or $_.Current.NativeWindowHandle -ne $dialogHandle })
+  if ($extra.Count -ne 0) {
+   if ($extra.Count -ne 1 -or $remaining.Count -ne 1) { throw 'save_dialog_unsupported' }
+   $confirmation=$extra[0]
+   Assert-OwnedSaveConfirmation $confirmation $dialog $dialogKey $dialogHandle
+   if ($valuePattern.Current.Value -cne $dest) { throw 'invalid_destination' }
+   $close=$confirmation.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern)
+   Assert-OwnedSaveConfirmation $confirmation $dialog $dialogKey $dialogHandle
+   # Close means cancel; never invoke Yes/Replace, remove or replace a target file.
+   $close.Close()
+   # Only close the original tracked Save As if focus and its identity still match.
+   try {
+    Assert-SaveDialog $dialog
+    if ((Node-Key $dialog) -cne $dialogKey -or $dialog.Current.NativeWindowHandle -ne $dialogHandle -or $valuePattern.Current.Value -cne $dest) { throw 'save_dialog_unsupported' }
+    $dialog.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+   } catch { }
+   throw 'save_conflict'
+  }
+  # Native caller separately waits for file stability and checks source size/hash.
+  if ($remaining.Count -eq 0) { return }
+  Start-Sleep -Milliseconds 100
+ }
+ # A timeout does not authorize closing an unrecognized or user-changed window.
+ throw 'save_incomplete'
 }
 function Resolve-Node($token) {
  Assert-Window
@@ -222,7 +263,9 @@ while ($null -ne ($line=[Console]::ReadLine())) {
     # UIA cannot make this sequence atomic against a malicious same-user process.
     Assert-SaveDialog $dialog
     Assert-SaveDestination $valuePattern $dest
+    $dialogKey=Node-Key $dialog;$dialogHandle=$dialog.Current.NativeWindowHandle
     $invoke.Invoke()
+    Wait-SaveCompletion $dialog $valuePattern $dest $dialogKey $dialogHandle
     $result=$true
    }
    'close' { exit 0 }
@@ -231,7 +274,7 @@ while ($null -ne ($line=[Console]::ReadLine())) {
   @{ok=$true;result=$result} | ConvertTo-Json -Depth 20 -Compress | ForEach-Object { [Console]::WriteLine($_) }
  } catch {
   # Never return exception text, which can contain private paths or UI contents.
-  $allowed=@('not_connected','wrong_process','wrong_window','focus_changed','stale_node','tree_limit','request_limit','line_window_ambiguous','publisher_unverified','selection_unsupported','scroll_unsupported','navigation_not_allowed','download_action_not_allowed','invalid_destination','linked_destination','save_dialog_missing','save_dialog_unsupported','save_button_unsupported','unknown_action')
+  $allowed=@('not_connected','wrong_process','wrong_window','focus_changed','stale_node','tree_limit','request_limit','line_window_ambiguous','publisher_unverified','selection_unsupported','scroll_unsupported','navigation_not_allowed','download_action_not_allowed','invalid_destination','linked_destination','save_dialog_missing','save_dialog_unsupported','save_button_unsupported','save_conflict','save_incomplete','unknown_action')
   $code=if($_.Exception.Message -in $allowed){$_.Exception.Message}else{'uia_operation_failed'}
   @{ok=$false;code=$code} | ConvertTo-Json -Compress | ForEach-Object { [Console]::WriteLine($_) }
  }
