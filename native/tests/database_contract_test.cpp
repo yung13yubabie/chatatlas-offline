@@ -43,7 +43,13 @@ int main(int argc,char**argv){
   rejected([&]{db.rows("SELECT 1",J::array({1}));});
   rejected([&]{db.rows("not valid sql");});
   assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
-  try{db.transaction([&]{db.execute("INSERT INTO fixture(value) VALUES('rollback')");throw Error("test");});}catch(const Error&){}
+  bool reachedRollback=false,caughtRollback=false;
+  try{db.transaction([&]{
+   db.execute("INSERT INTO fixture(value) VALUES('rollback')");
+   assert(db.rows("SELECT count(*) AS n FROM fixture")[0]["n"]==2);
+   reachedRollback=true;throw Error("synthetic rollback sentinel");
+  });}catch(const Error&e){caughtRollback=std::string(e.what())=="synthetic rollback sentinel";}
+  assert(reachedRollback&&caughtRollback);
   assert(db.rows("SELECT count(*) AS n FROM fixture")[0]["n"]==1);
   const auto backup=root/"synthetic-db-backup.sqlite3";
   db.backup(backup);
