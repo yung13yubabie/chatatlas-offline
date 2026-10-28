@@ -6,6 +6,8 @@ This is a developer verification record, not text for the reading interface. Fix
 
 `Store::check()` returns `pending_attachment` for pending, failed, or unavailable originals and `preview_only` for thumbnails. `makeZip()` previously omitted these codes from the operation labelled a complete backup, so it could produce a ZIP without complete originals. The complete-backup gate now rejects both codes before publishing an output. The existing collection remains readable and unchanged; the message asks the user to save or repair missing files before retrying. No partial-backup feature was added.
 
+The first Windows core execution exposed a second concrete issue: database asset names use portable `/` separators, while the filesystem scan compared Windows-native `\\` names. Registered assets were consequently reported as unregistered. The scan now compares `generic_u8string()` relative names, with a portable-path regression and artificial-fixture issue diagnostics. Link and integrity checks are unchanged.
+
 ## Verification coverage
 
 | Flow | Evidence and acceptance |
