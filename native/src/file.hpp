@@ -9,10 +9,11 @@
 #else
 #include <unistd.h>
 #endif
+#include "windows_files.hpp"
 namespace atlas {
 class ExclusiveFile{FILE*file=nullptr;public:explicit ExclusiveFile(const fs::path&p){noLinks(p);int fd=-1;
 #ifdef _WIN32
- HANDLE h=CreateFileW(p.c_str(),GENERIC_WRITE,0,nullptr,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,nullptr);if(h!=INVALID_HANDLE_VALUE){fd=_open_osfhandle(reinterpret_cast<intptr_t>(h),_O_BINARY|_O_WRONLY);if(fd<0)CloseHandle(h);}
+ const auto expected=fs::canonical(p.parent_path())/p.filename(); PrivateSecurity security; HANDLE h=CreateFileW(p.c_str(),GENERIC_WRITE,0,&security.attributes,CREATE_NEW,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);if(h!=INVALID_HANDLE_VALUE){try{verifyFileHandle(h,expected);}catch(...){CloseHandle(h);throw;}fd=_open_osfhandle(reinterpret_cast<intptr_t>(h),_O_BINARY|_O_WRONLY);if(fd<0)CloseHandle(h);}
 #else
  fd=::open(p.c_str(),O_CREAT|O_EXCL|O_WRONLY|O_NOFOLLOW,0600);
 #endif

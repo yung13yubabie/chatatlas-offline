@@ -206,7 +206,8 @@ window.VaultDownloads = (catalog, notify) => {
 })();
 )ATLAS";
 const char*worker_script=R"ATLAS($ErrorActionPreference = 'Stop'
-[Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
+# Preserve the bootstrap's buffered stdin reader if it already uses UTF-8.
+if ([Console]::InputEncoding.CodePage -ne 65001) { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false) }
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -221,6 +222,9 @@ public static class VaultNative {
 }
 '@
 $script:ProcessId = 0
+$script:ProcessStarted = 0
+$script:ProcessPath = $null
+$script:SaveDialogNames = @('Save As','Save as','另存新檔','另存為','另存为','名前を付けて保存')
 $script:Main = $null
 $script:Cache = @{}
 $script:Stage = $null
@@ -238,7 +242,7 @@ function Node-Object($e) {
 function Assert-Window {
  if ($null -eq $script:Main) { throw 'not_connected' }
  $p=Get-Process -Id $script:ProcessId
- if ($p.ProcessName -ne 'LINE') { throw 'wrong_process' }
+ if ($p.ProcessName -cne 'LINE' -or $p.StartTime.ToUniversalTime().Ticks -ne $script:ProcessStarted -or $p.Path -ine $script:ProcessPath) { throw 'wrong_process' }
  if ($script:Main.Current.ProcessId -ne $script:ProcessId) { throw 'wrong_window' }
 }
 function Assert-Foreground {
@@ -246,6 +250,19 @@ function Assert-Foreground {
  [uint32]$pid0=0
  [void][VaultNative]::GetWindowThreadProcessId([VaultNative]::GetForegroundWindow(),[ref]$pid0)
  if ($pid0 -ne $script:ProcessId) { throw 'focus_changed' }
+}
+function Assert-SaveDialog($dialog) {
+ Assert-Window
+ $c=$dialog.Current
+ if ($c.ProcessId -ne $script:ProcessId -or $c.ClassName -cne '#32770' -or $c.Name -cnotin $script:SaveDialogNames -or !$c.IsEnabled -or $c.IsOffscreen -or $c.NativeWindowHandle -eq 0) { throw 'save_dialog_unsupported' }
+ if ([VaultNative]::GetForegroundWindow() -ne [IntPtr]$c.NativeWindowHandle) { throw 'focus_changed' }
+}
+function Assert-SaveDestination($valuePattern,$dest) {
+ if ($valuePattern.Current.Value -cne $dest -or (Test-Path -LiteralPath $dest)) { throw 'invalid_destination' }
+}
+function Get-LineDialogs {
+ $wins=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
+ return @($wins | Where-Object { $_.Current.ProcessId -eq $script:ProcessId -and $_.Current.ClassName -eq '#32770' })
 }
 function Resolve-Node($token) {
  Assert-Window
@@ -290,6 +307,8 @@ while ($null -ne ($line=[Console]::ReadLine())) {
     $signature=Get-AuthenticodeSignature -FilePath $p.Path
     if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(?:^|,\s*)O="?(?:LINE Corporation|LY Corporation|NAVER Corporation)"?(?:,|$)') { throw 'publisher_unverified' }
     $script:ProcessId=$p.Id
+    $script:ProcessStarted=$p.StartTime.ToUniversalTime().Ticks
+    $script:ProcessPath=$p.Path
     $script:Main=[System.Windows.Automation.AutomationElement]::FromHandle($p.MainWindowHandle)
     if ($script:Main.Current.ClassName -eq '#32770') { throw 'wrong_window' }
     $result=@{version=$p.FileVersionInfo.FileVersion; root=(Node-Object $script:Main); publisher_verified=$true}
@@ -375,25 +394,36 @@ while ($null -ne ($line=[Console]::ReadLine())) {
     $parent=[System.IO.Path]::GetDirectoryName($dest)
     if (!(Test-Path -LiteralPath $parent -PathType Container) -or [System.IO.Path]::GetFileName($dest) -ne 'payload.bin' -or (Test-Path -LiteralPath $dest)) { throw 'invalid_destination' }
     if ((Get-Item -LiteralPath $parent).Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'linked_destination' }
+    # Refuse an already open dialog instead of mistaking it for this download.
+    if (@(Get-LineDialogs).Count -ne 0) { throw 'save_dialog_unsupported' }
+    Assert-Foreground
     $e.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     $deadline=[DateTime]::UtcNow.AddSeconds(10);$dialog=$null
     while ([DateTime]::UtcNow -lt $deadline -and $null -eq $dialog) {
-     $wins=[System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children,[System.Windows.Automation.Condition]::TrueCondition)
-     $saveWindows=@($wins | Where-Object { $_.Current.ProcessId -eq $script:ProcessId -and $_.Current.ClassName -eq '#32770' })
+     Assert-Window
+     $saveWindows=@(Get-LineDialogs)
      if ($saveWindows.Count -gt 1) { throw 'save_dialog_unsupported' }
      if ($saveWindows.Count -eq 1) { $dialog=$saveWindows[0] }
      if ($null -eq $dialog) { Start-Sleep -Milliseconds 100 }
     }
     if ($null -eq $dialog) { throw 'save_dialog_missing' }
+    Assert-SaveDialog $dialog
     $edits=Find-Nodes $dialog @{control_type='Edit';automation_id='1001'} 2000
     if ($edits.Count -ne 1) { throw 'save_dialog_unsupported' }
-    $edits[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($dest)
+    if ($edits[0].Current.ProcessId -ne $script:ProcessId -or !$edits[0].Current.IsEnabled) { throw 'save_dialog_unsupported' }
+    $valuePattern=$edits[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+    if ($valuePattern.Current.IsReadOnly) { throw 'save_dialog_unsupported' }
+    $valuePattern.SetValue($dest)
     if ($edits[0].GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).Current.Value -cne $dest) { throw 'invalid_destination' }
     $buttons=Find-Nodes $dialog @{control_type='Button'} 2000
-    $save=@($buttons | Where-Object { $_.Current.AutomationId -eq '1' -and $_.Current.Name -match '(Save|儲存|保存)' })
+    $save=@($buttons | Where-Object { $_.Current.AutomationId -eq '1' -and ($_.Current.Name -replace '&','') -match '^(Save|儲存|保存)(\([A-Za-z]\))?$' -and $_.Current.ProcessId -eq $script:ProcessId -and $_.Current.IsEnabled -and !$_.Current.IsOffscreen })
     if ($save.Count -ne 1) { throw 'save_button_unsupported' }
-    Assert-Foreground
-    $save[0].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    $invoke=$save[0].GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+    # Revalidate this exact dialog and destination immediately before invoking.
+    # UIA cannot make this sequence atomic against a malicious same-user process.
+    Assert-SaveDialog $dialog
+    Assert-SaveDestination $valuePattern $dest
+    $invoke.Invoke()
     $result=$true
    }
    'close' { exit 0 }

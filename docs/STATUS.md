@@ -1,26 +1,35 @@
-# 0.3.1-alpha.1 候選版狀態
+# 0.3.1-alpha.2 候選版狀態
 
-更新：2026-10-28。此版是實驗性發布候選，**不是正式完整版**。
+更新：2026-10-28。實驗預覽版，不是已完成的 LINE 備份工具。
 
-| 項目 | 狀態 |
-| --- | --- |
-| Python 相容實作 | 93 項測試通過，含新增 ID / 路徑限制回歸 |
-| 原生核心 | Linux 編譯通過；執行到 8 項基礎檢查後，環境的 Git 路徑保護阻擋測試資料夾建立 |
-| Windows x64 EXE | 從修正後來源重新交叉編譯；不是沿用舊二進位 |
-| 知識圖模型 | JavaScript 模型測試通過 |
-| 本次 Chromium / file URL 實測 | 未完成；執行環境阻擋 Chromium 所需程序通訊 |
-| Windows GUI / 真實 LINE | 未驗證，沒有可交付的已驗證 LINE 版面設定 |
-| 多 GB 附件 / Windows 原生保存選擇器 | 未驗證 |
-| 獨立完整安全複核 | 未執行，本次範圍不包含此項；不代表通過 |
-| 公開 Repo / Release | 本文件記錄驗證範圍，不代表發布或實機驗收已完成 |
+## 此次可驗證範圍
 
-## 此候選修正
+- 原生 EXE、全部 CI、建置與打包流程不使用 Python；Node.js 僅為開發、測試與建置工具。
+- Windows 私人 ACL、檔案控制代碼驗證、LINE 程序與另存對話框驗證的修改需以本版 Windows 合成測試結果為準。
+- 原生 build 加入 strong stack protector；CFG 仍未啟用，Authenticode 仍未簽章。
+- Actions 原本已釘選完整 commit SHA；本版保留釘選並新增 tag 建置、原生打包與受限權限的 build attestation。
+- GitHub attestation 必須由實際成功執行的 workflow 產生並驗證，不能只靠本文件或本機 JSON 宣稱存在。
+- 本版 CI / Windows 合成測試結果尚待本版 commit 的實際執行；不能沿用前版測試通過聲明。
 
-- 對資料庫讀入的 ID / 雜湊做格式與來源一致性檢查，避免篡改資料導致輸出路徑逃逸。
-- 閱讀頁分段輸出經受限路徑檢查；錯誤封存會在建立新閱讀頁前停止。
-- 補回原始 ZIP 遺漏的 3 個官方 nlohmann/json 標頭，並核對既有標頭。
-- 原生建置鎖定 Zig 0.14.1，記錄二進位與來源輸入的 SHA-256。
-- 修正原先仍建置舊 Python 程式的工作流程；補齊編譯器執行環境授權告示。
-- 來源包只從通過白名單與隱私規則的暫存區建立。
+## 本機可確認與限制
 
-以上是已執行範圍，不是「所有資安檢查已通過」的聲明。
+Node 封裝回歸測試已通過（ZIP 往返、CRC、非法路徑拒絕、完整 SHA 釘選與無 Python 原生管線）。
+目前工作環境的暫存根目錄屬 Git 樹，原生收藏保護會拒絕合成 Store 建立；
+因此本機端到端封裝與完整核心 Store 測試未完成，應由正常隔離的 CI 暫存區驗證，
+不會移除保護繞過。
+
+## 前版已完成紀錄
+
+alpha.1 的 source checks 六個 job 及 native build 已通過，舊版文件所記錄的初期環境阻擋
+不代表最終 CI 仍失敗。這只適用於 commit `4ef4e7af5d40553fad42d0a7caf29e2affa575a0`：
+
+- https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40619562124
+- https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40619848176
+
+## 未完成驗收
+
+真實 Windows GUI、完整 LINE 自動採集、版面設定與多 GB 附件尚未實機驗收。
+本次不是深入獨立安全稽核，未宣稱沒有暗門、沒有漏洞或任何情況都不會外連。
+檔案雜湊、重編譯比對、PE 匯入表及 CSP 各自只有有限證明範圍。
+
+保留原始資料及第二份副本，不應用預覽版處理唯一一份重要聊天。

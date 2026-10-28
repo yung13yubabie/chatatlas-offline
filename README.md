@@ -1,6 +1,6 @@
 # 聊藏 ChatAtlas · LINE 離線知識地圖
 
-**0.3.1-alpha.1 — 實驗預覽版，不是已完成的 LINE 備份工具。**
+**0.3.1-alpha.2 — 實驗預覽版，不是已完成的 LINE 備份工具。**
 
 把本機封存內容整理成可探索的 HTML：點人物、主題或附件，查看相關原文、預覽圖片、另存檔案。閱讀頁不依賴外部 CDN、遠端模型或本機伺服器。
 
@@ -24,22 +24,25 @@ Windows x64 候選包內的 `ChatAtlas.exe` 是原生程式，使用者不需安
 
 ## 原始碼與建置
 
-原生 Windows 程式在 `native/`；共用閱讀頁在 `src/line_vault/web/`。Python 實作保留作相容性與回歸測試，不會被原生 EXE 載入。根目錄 `Start.cmd` 僅啟動舊 Python 開發介面。
+原生 Windows 程式在 `native/`；共用閱讀頁在 `src/line_vault/web/`。舊 Python 來源僅作歷史參考，不會被原生 EXE、CI 或發布管線載入。請使用 Release 的原生 EXE，不使用歷史 Python 啟動入口。
 
-需要 **Zig 0.14.1**、Node.js，開發檢查另需 Python 3.11+、GNU C++20 和系統 SQLite：
+原生建置與打包需要 **Zig 0.14.1**、Node.js；Linux 核心測試另需 GNU C++20 和系統 SQLite。原生管線不使用 Python：
 
 ```sh
-# Linux x64 可用 Python 3.12+ 下載並校驗指定 Zig
-python3 tools/fetch_zig.py
+# Linux x64 下載並校驗指定 Zig
+node tools/fetch_zig.mjs
 ATLAS_ZIG="$PWD/.toolchains/zig-x86_64-linux-0.14.1/zig" node native/build.mjs
 
-PYTHONPATH=src python3 -m unittest discover -s tests -v
-make -C native test
+make -C native test build/atlas-cli
 node tools/graph_model_test.cjs
 npm ci --ignore-scripts
 npx playwright install chromium
-node tools/reader_test.cjs
+node tools/check_public_tree.mjs
+node tools/package_test.mjs
+node tools/package_release.mjs --output dist
 ```
+
+全部 CI 採原生 C++、Node.js 與 PowerShell，不執行舊 Python 相容層或其測試。
 
 Windows 開發者安裝相同版本 Zig 與 Node.js 後，可執行 `Build-Windows.cmd`。
 詳細步驟見 [native/README.md](native/README.md)。

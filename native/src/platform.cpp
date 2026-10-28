@@ -1,5 +1,6 @@
 #include "core.hpp"
 #include "file.hpp"
+#include "windows_files.hpp"
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -42,11 +43,14 @@ void noLinks(const fs::path&given){auto p=fs::absolute(given).lexically_normal()
 fs::path privateDir(fs::path p){p=fs::absolute(p).lexically_normal();noLinks(p);
  // Only protect a directory created by this call. Existing destination parents
  // may be shared system or user folders; changing their permissions is unsafe.
+ #ifdef _WIN32
+ if(!fs::exists(p)){privateDir(p.parent_path());PrivateSecurity security;if(!CreateDirectoryW(p.c_str(),&security.attributes)&&GetLastError()!=ERROR_ALREADY_EXISTS)throw Error("無法建立私人資料夾。");}
+ noLinks(p);
+ #else
  if(fs::create_directories(p)){
-#ifndef _WIN32
   fs::permissions(p,fs::perms::owner_all,fs::perm_options::replace);
-#endif
  }
+ #endif
  return p;}
 fs::path within(const fs::path&root,const std::string&name){auto rel=path8(name);if(name.empty()||rel.is_absolute()||rel.has_root_name()||name.find('\\')!=std::string::npos||name.find(':')!=std::string::npos)throw Error("檔案位置不正確。");for(auto p:rel)if(p=="..")throw Error("檔案位置不正確。");auto result=fs::absolute(root/rel).lexically_normal();noLinks(result);return result;}
 std::string readText(const fs::path&p,uint64_t max){noLinks(p);if(!fs::is_regular_file(p)||fs::file_size(p)>max)throw Error("檔案無法讀取或過大。");std::ifstream in(p,std::ios::binary);if(!in)throw Error("檔案無法讀取。");std::string s(std::istreambuf_iterator<char>(in),{});if(s.size()>max)throw Error("檔案過大。");return s;}
