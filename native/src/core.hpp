@@ -32,6 +32,7 @@ struct Digest{std::string hash;uint64_t size=0;uint32_t crc=0;};Digest digest(co
 bool canonicalHash(const std::string&);
 std::string normalizeTime(const std::string&);void validateChat(const J&),validateItem(J&),validateAttachment(J&);
 class Lock{void*handle=nullptr;int fd=-1;public:explicit Lock(const fs::path&);~Lock();Lock(const Lock&)=delete;};
+// With Tick and no SQL parameters, pass J::array(); J{} / nullptr denotes one SQL NULL argument.
 class Db{void*db=nullptr;bool trustedSchemaOff=false,cellSizeCheck=false;public:J protectionStatus()const;std::string protectionNotice()const;explicit Db(const fs::path&,bool create=true);~Db();Db(const Db&)=delete;J rows(const std::string&,const J&args=J::array(),Tick={});void exec(const std::string&);void execute(const std::string&,const J&args=J::array());void transaction(const std::function<void()>&);int64_t lastId();void backup(const fs::path&,Tick={});};
 int archiveSchemaVersion(const fs::path&);
 J validatedCaptureOptions(const J& raw);

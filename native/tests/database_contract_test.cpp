@@ -41,6 +41,11 @@ int main(int argc,char**argv){
   assert(values[0]["n"].is_null());assert(values[0]["e"]=="");assert(values[0]["b"]=="");assert(values[0]["i"]==42);
   rejected([&]{db.rows("SELECT ?",J::array({J::object()}));});
   rejected([&]{db.rows("SELECT 1",J::array({1}));});
+  int noParameterTicks=0;assert(db.rows("SELECT 7 AS n",J::array(),[&]{++noParameterTicks;})[0]["n"]==7);assert(noParameterTicks>0);
+  assert(db.rows("SELECT ? AS n",J(nullptr),[]{})[0]["n"].is_null());
+  rejected([&]{db.rows("SELECT 1",J(nullptr),[]{});});
+  rejected([&]{db.rows("SELECT 1",J::array({1}),[]{});});
+  int rowTicks=0;bool rowCancelled=false;try{db.rows("WITH RECURSIVE counter(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM counter WHERE n<50) SELECT n FROM counter",J::array(),[&]{if(++rowTicks==10)throw Cancelled();});}catch(const Cancelled&){rowCancelled=true;}assert(rowCancelled&&rowTicks==10);assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
   rejected([&]{db.rows("not valid sql");});
   assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
   bool reachedRollback=false,caughtRollback=false;
