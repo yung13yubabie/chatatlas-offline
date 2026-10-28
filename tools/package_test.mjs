@@ -16,7 +16,21 @@ const fetchSource=fs.readFileSync(ROOT+'/tools/fetch_zig.mjs','utf8');
 assert.match(fetchSource,/execFileSync\('tar',\['-tf',archive\],\{encoding:'utf8',maxBuffer:16\*1024\*1024\}\)/);
 const largeListing=execFileSync(process.execPath,['-e',"process.stdout.write('synthetic-entry\\n'.repeat(150000))"],{encoding:'utf8',maxBuffer:16*1024*1024});
 assert(largeListing.length>1024*1024);
-console.log('Native package regression checks passed, including >1 MiB toolchain listing buffer.');
+
+
+// The runner context belongs in step env, not job-level env.
+function checkJobEnvContexts(workflow){
+ let jobEnv=false;
+ for(const line of workflow.split('\n')){
+  if(/^    env:\s*$/.test(line)){jobEnv=true;continue;}
+  if(jobEnv&&line.trim()&&line.search(/\S/)<=4)jobEnv=false;
+  if(jobEnv)assert(!/\$\{\{\s*runner\./.test(line),'runner context must be in step env');
+ }
+}
+for(const wf of ['checks.yml','windows-build.yml','capture-release-ui.yml'])checkJobEnvContexts(fs.readFileSync(ROOT+'/.github/workflows/'+wf,'utf8'));
+assert.throws(()=>checkJobEnvContexts('    env:\n      QA: ${{ runner.temp }}\n'));
 
 for(const name of fs.readdirSync(ROOT+'/docs/screenshots').filter(n=>n.endsWith('.png'))){const key='docs/screenshots/'+name,bytes=fs.readFileSync(ROOT+'/'+key);assert(!review(new Map([[key,bytes]]),false).some(([p])=>p===key));const corrupt=Buffer.from(bytes);corrupt[corrupt.length-1]^=1;assert(review(new Map([[key,corrupt]]),false).some(([p,r])=>p===key&&r==='unreviewed documentation image'));}
 assert(review(new Map([['docs/screenshots/unreviewed.png',Buffer.from([137,80,78,71,13,10,26,10])]]),false).some(([p])=>p==='docs/screenshots/unreviewed.png'));
+
+console.log('Native package regression checks passed, including >1 MiB toolchain listing buffer.');

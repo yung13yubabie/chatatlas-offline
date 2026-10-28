@@ -75,7 +75,6 @@ jobs:
   exact-release-smoke:
     env:
       ATLAS_PORTABLE: '1'
-      ATLAS_QA: ${{ runner.temp }}/chatatlas-release-ui
     needs: build
     runs-on: windows-latest
     timeout-minutes: 15
@@ -91,6 +90,8 @@ jobs:
           path: downloaded-release
       - name: Verify and exercise the exact packaged executable
         shell: powershell
+        env:
+          ATLAS_QA: ${{ runner.temp }}/chatatlas-release-ui
         run: |
           $ErrorActionPreference = 'Stop'
           $version = (Get-Content -LiteralPath VERSION -Raw).Trim()
