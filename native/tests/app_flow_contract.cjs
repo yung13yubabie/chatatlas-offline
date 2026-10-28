@@ -35,6 +35,13 @@ assert(cpp.includes('if(!selected.is_absolute())throw Error('),'untagged relativ
 assert(cpp.includes('L"Collections"')&&cpp.includes('L"Example"'),'defaults and example remain under portable config');
 const version=fs.readFileSync(path.join(__dirname,'../../VERSION'),'utf8').trim();
 assert.equal(cpp.split(version).length-1,2,'both visible version labels match VERSION');
+const numericVersion=version.replace('-alpha.','.');
+const manifest=fs.readFileSync(path.join(__dirname,'../src/app.manifest'),'utf8');
+const selfIdentity=manifest.match(/<assemblyIdentity[^>]*name="ChatAtlas\.Desktop"[^>]*>/)?.[0];
+assert(selfIdentity&&selfIdentity.includes('version="'+numericVersion+'"'),'own assembly version matches VERSION');
+const resource=fs.readFileSync(path.join(__dirname,'../src/app.rc'),'utf8');
+for(const label of ['FILEVERSION','PRODUCTVERSION'])assert(resource.includes(label+' '+numericVersion.replaceAll('.',',')),'numeric resource version matches VERSION');
+assert(resource.includes('"'+version+'\\0"'),'product version string matches VERSION');
 const archive=fs.readFileSync(path.join(__dirname,'../src/archive.cpp'),'utf8');
 assert(!archive.includes('std::ifstream')&&archive.includes('VerifiedInput in(within(s.root,rel))')&&archive.includes('VerifiedInput in(p)'),'archive read paths use verified handles');
 assert(archive.includes('in.size()!=b["size"].get<uint64_t>()'),'attachment size is checked on opened handle before chunk generation');

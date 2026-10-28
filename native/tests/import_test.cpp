@@ -11,6 +11,13 @@ void require(bool value){++checks;assert(value);}
 std::map<std::string,std::string> hashes(const fs::path& root){std::map<std::string,std::string> out;for(const auto& e:fs::recursive_directory_iterator(root))if(e.is_regular_file())out[e.path().lexically_relative(root).generic_string()]=digest(e.path()).hash;return out;}
 template<class F> void reject(F fn){bool caught=false;try{fn();}catch(const Error&){caught=true;}require(caught);}
 fs::path clone(const fs::path& source,const fs::path& to){fs::copy(source,to,fs::copy_options::recursive);return to;}
+// A case-only malformed spelling can name the same physical file on Windows.
+// Only create an absent destination; never copy over an unrelated existing file.
+void fixtureCopy(const fs::path& source,const fs::path& target){
+ if(fs::exists(target)){require(fs::equivalent(source,target));return;}
+ fs::create_directories(target.parent_path());require(fs::copy_file(source,target));
+}
+
 #ifdef _WIN32
 std::wstring acl(const fs::path& p){PSECURITY_DESCRIPTOR sd=nullptr;require(GetNamedSecurityInfoW(const_cast<LPWSTR>(p.c_str()),SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,nullptr,nullptr,nullptr,nullptr,&sd)==ERROR_SUCCESS);LPWSTR text=nullptr;require(ConvertSecurityDescriptorToStringSecurityDescriptorW(sd,SDDL_REVISION_1,DACL_SECURITY_INFORMATION,&text,nullptr));std::wstring result=text;LocalFree(text);LocalFree(sd);return result;}
 std::map<std::string,std::wstring> allAcls(const fs::path& root){std::map<std::string,std::wstring> result;result["."]=acl(root);for(const auto&e:fs::recursive_directory_iterator(root))result[e.path().lexically_relative(root).generic_string()]=acl(e.path());return result;}
@@ -54,14 +61,14 @@ int main(int argc,char**argv){try{
  for(const auto* ext:{"png","jpg","gif","webp","wav","ogg","mp3","mp4","bin"}){
   auto input=clone(source,root/("suffix-source-"+std::to_string(caseIndex))),output=root/("suffix-out-"+std::to_string(caseIndex++));
   {Db db(input/"archive.sqlite3");auto blob=db.rows("SELECT * FROM blobs ORDER BY id LIMIT 1").at(0);auto hash=blob["sha256"].get<std::string>(),old=blob["path"].get<std::string>(),rel="assets/"+hash.substr(0,2)+"/"+hash+"."+ext;
-   if(rel!=old)fs::copy_file(within(input,old),within(input,rel));auto actual=digest(within(input,rel));require(actual.hash==hash&&actual.size==blob["size"].get<uint64_t>());db.execute("UPDATE blobs SET path=? WHERE id=?",{rel,blob["id"]});}
+   fixtureCopy(within(input,old),within(input,rel));auto actual=digest(within(input,rel));require(actual.hash==hash&&actual.size==blob["size"].get<uint64_t>());db.execute("UPDATE blobs SET path=? WHERE id=?",{rel,blob["id"]});}
   const auto before=hashes(input);auto imported=importBackup(input,output);require(hashes(input)==before);{Store checked(imported.root);require(checked.check().empty());}
  }
  phase="in-root malformed registered paths with valid payload";
  for(int variant=0;variant<7;++variant){
   auto input=clone(source,root/("noncanonical-source-"+std::to_string(variant))),output=root/("noncanonical-out-"+std::to_string(variant));
   {Db db(input/"archive.sqlite3");auto blob=db.rows("SELECT * FROM blobs ORDER BY id LIMIT 1").at(0);auto hash=blob["sha256"].get<std::string>(),old=blob["path"].get<std::string>();const auto wrongPrefix=hash.substr(0,2)=="ff"?"00":"ff";
-   const std::vector<std::string> paths={"assets/plain.bin","assets/inert.html","assets/inert.exe","assets/"+std::string(wrongPrefix)+"/"+hash+".bin","assets/"+hash.substr(0,2)+"/"+std::string(64,'a')+".bin","assets/"+hash.substr(0,2)+"/"+hash+".BIN","other/"+hash+".bin"};const auto rel=paths.at(variant);fs::create_directories(within(input,rel).parent_path());fs::copy_file(within(input,old),within(input,rel));auto actual=digest(within(input,rel));require(actual.hash==hash&&actual.size==blob["size"].get<uint64_t>());db.execute("UPDATE blobs SET path=? WHERE id=?",{rel,blob["id"]});}
+   const std::vector<std::string> paths={"assets/plain.bin","assets/inert.html","assets/inert.exe","assets/"+std::string(wrongPrefix)+"/"+hash+".bin","assets/"+hash.substr(0,2)+"/"+std::string(64,'a')+".bin","assets/"+hash.substr(0,2)+"/"+hash+".BIN","other/"+hash+".bin"};const auto rel=paths.at(variant);fixtureCopy(within(input,old),within(input,rel));auto actual=digest(within(input,rel));require(actual.hash==hash&&actual.size==blob["size"].get<uint64_t>());db.execute("UPDATE blobs SET path=? WHERE id=?",{rel,blob["id"]});}
   const auto before=hashes(input);reject([&]{importBackup(input,output);});require(!fs::exists(output)&&hashes(input)==before);
  }
  phase="cancel retention";auto cancelParent=privateDir(root/"cancel-parent");bool cancelled=false;try{importBackup(source,cancelParent/"out",[&]{for(const auto&e:fs::directory_iterator(cancelParent))if(e.is_directory())throw Cancelled();});}catch(const ImportFailure&e){cancelled=e.cancelled;require(fs::is_directory(e.retained));}require(cancelled&&!fs::exists(cancelParent/"out")&&hashes(source)==original);
