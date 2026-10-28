@@ -1,7 +1,23 @@
 import unittest
+import codecs
+from pathlib import Path
 
 from line_vault.errors import CapabilityError
 from line_vault.windows.source import WindowsSource,single,validate_profile
+
+
+class WorkerEncodingTests(unittest.TestCase):
+    def test_worker_encoding_matches_embedded_payload(self):
+        root = Path(__file__).resolve().parents[1]
+        raw = (root / "src/line_vault/windows/uia_worker.ps1").read_bytes()
+        self.assertTrue(raw.startswith(codecs.BOM_UTF8))
+        text = raw.decode("utf-8-sig")
+        self.assertTrue(text.startswith("$ErrorActionPreference"))
+        self.assertNotIn("\ufeff", text)
+        self.assertTrue(any(ord(char) > 127 for char in text))
+        bundle = (root / "native/src/bundle.cpp").read_text(encoding="utf-8")
+        embedded = bundle.split('const char*worker_script=R"ATLAS(', 1)[1].split(')ATLAS";', 1)[0]
+        self.assertEqual(embedded, text)
 
 
 class ProfileTests(unittest.TestCase):

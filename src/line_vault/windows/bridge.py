@@ -24,7 +24,7 @@ class WindowsBridge:
             raise CapabilityError("連接 LINE 需要在 Windows 電腦上執行。")
         systemroot=os.environ.get("SystemRoot",r"C:\Windows")
         executable=Path(systemroot)/"System32/WindowsPowerShell/v1.0/powershell.exe"
-        script=(Path(__file__).parent/"uia_worker.ps1").read_text(encoding="utf-8")
+        script=(Path(__file__).parent/"uia_worker.ps1").read_text(encoding="utf-8-sig")
         # Static, bundled code only; neither UI strings nor profile values become code.
         self.process=subprocess.Popen([str(executable),"-NoLogo","-NoProfile","-NonInteractive","-Command",script],
              stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
