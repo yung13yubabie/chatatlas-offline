@@ -23,6 +23,13 @@ const copyrightHashes={
     "licenses/Runtime-source-notices.txt": "aab1e1465b8d2e2a71bc5d44fd4254801c7cd456be0db56f247ca73de8540212",
     "licenses/Zig-MIT.txt": "5c537d6853e005298a285d508cff9ac7192cea23576c840d485b2b586a7ff177",
 };
+// Reviewed artificial-data screenshots only; arbitrary binary documentation is rejected.
+const documentationImages={
+  "docs/screenshots/offline-map-alpha2.png": "2919f0919eb48c0d7e36fbd5a90c6c90f9fd17268287b1ed5cf5c01448769710",
+  "docs/screenshots/offline-mobile-alpha2.png": "29908ce9faa25e432e4395ebb28b89071e4283495e30832dc71b0a52937317fc",
+  "docs/screenshots/offline-reading-alpha2.png": "c1e0299c9468c537c28c8929f565df09c2b7ee2b003fbc1bf3887b02caaf9ae0",
+  "docs/screenshots/windows-native-alpha2.png": "c470da9caaedc8efa3b4339de9bd83ad55d8761d71e0a50a0bffe29c5cfba181"
+};
 export function stagedFiles(){
  const result=new Map();
  for(const row of execFileSync('git',['ls-files','--stage','-z'],{cwd:ROOT}).toString('utf8').split('\0').filter(Boolean)){
@@ -40,6 +47,7 @@ export function review(files,requireWorktree=true){
   if(parts.some(p=>p.startsWith('.')&&!['.github','.gitignore','.gitattributes'].includes(p))){fail('hidden file or directory');continue;}
   if(parts.some(p=>privateParts.has(p))&&!name.startsWith('native/vendor/nlohmann/detail/output/')){fail('private or generated directory');continue;}
   if(requireWorktree){const p=path.join(ROOT,name);try{if(!fs.lstatSync(p).isFile()||!fs.readFileSync(p).equals(bytes)){fail('working bytes differ from staged bytes');continue;}}catch{fail('working source missing');continue;}}
+  if(Object.hasOwn(documentationImages,name)){if(sha(bytes)!==documentationImages[name]||!bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))||bytes.length>4*1024*1024)fail('unreviewed documentation image');continue;}
   if(name==='native/src/app.ico'){if(!bytes.subarray(0,6).equals(Buffer.from([0,0,1,0,1,0]))||bytes.length>65536)fail('unexpected icon');continue;}
   if(!names.has(base)&&!json.has(name)&&!suffix.has(path.posix.extname(name).toLowerCase())){fail('file type not approved');continue;}
   if(base.toLowerCase().includes('local')||bytes.length>1024*1024){fail('local configuration or oversized file');continue;}
