@@ -46,6 +46,21 @@ int main(int argc,char**argv){
   rejected([&]{db.rows("SELECT 1",J(nullptr),[]{});});
   rejected([&]{db.rows("SELECT 1",J::array({1}),[]{});});
   int rowTicks=0;bool rowCancelled=false;try{db.rows("WITH RECURSIVE counter(n) AS (VALUES(1) UNION ALL SELECT n+1 FROM counter WHERE n<50) SELECT n FROM counter",J::array(),[&]{if(++rowTicks==10)throw Cancelled();});}catch(const Cancelled&){rowCancelled=true;}assert(rowCancelled&&rowTicks==10);assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
+  const auto signedMaximum=static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
+  assert(db.rows("SELECT ? AS n",J(signedMaximum))[0]["n"]==std::numeric_limits<int64_t>::max());
+  assert(db.rows("SELECT ? AS n",J(std::numeric_limits<int64_t>::min()))[0]["n"]==std::numeric_limits<int64_t>::min());
+  for(auto tooLarge:{signedMaximum+1,std::numeric_limits<uint64_t>::max()}){
+   rejected([&]{db.rows("SELECT ? AS n",J(tooLarge));});
+   assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
+  }
+  assert(db.rows("SELECT ? AS n",J(-7))[0]["n"]==-7);
+  assert(db.rows("SELECT ? AS n",J(true))[0]["n"]==1);
+  assert(db.rows("SELECT ? AS n",J(false))[0]["n"]==0);
+  assert(db.rows("SELECT ? AS n",J("scalar"))[0]["n"]=="scalar");
+  rejected([&]{db.rows("SELECT ? AS n",J(1.25));});
+  rejected([&]{db.rows("SELECT ? AS n",J::object());});
+  // SQLite intentionally treats omitted bindings as NULL; no arity-policy change here.
+  assert(db.rows("SELECT ? AS n")[0]["n"].is_null());
   rejected([&]{db.rows("not valid sql");});
   assert(db.rows("SELECT 1 AS ok")[0]["ok"]==1);
   bool reachedRollback=false,caughtRollback=false;

@@ -30,6 +30,9 @@ run([object('database'),object('platform'),'tests/database_contract_test.cpp','-
 const databaseFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-db-contract-'));
 try{execFileSync(path.join(ROOT,'native/build/database-contract-test.exe'),[databaseFixture],{stdio:'inherit'});}finally{fs.rmSync(databaseFixture,{recursive:true,force:true});}
 
+run([...common,'tests/item_value_contract_test.cpp','-ladvapi32','-o','build/item-value-contract-test.exe']);
+execFileSync(path.join(ROOT,'native/build/item-value-contract-test.exe'),[],{stdio:'inherit'});
+
 run([object('platform'),'tests/path_identity_test.cpp','-ladvapi32','-o','build/path-identity-test.exe']);
 const pathFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-path-identity-'));
 try{execFileSync(path.join(ROOT,'native/build/path-identity-test.exe'),[pathFixture],{stdio:'inherit'});}finally{fs.rmSync(pathFixture,{recursive:true,force:true});}

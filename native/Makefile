@@ -16,12 +16,13 @@ build/database-contract-test: build/database.o build/platform.o tests/database_c
 	$(CXX) $(CXXFLAGS) tests/database_contract_test.cpp build/database.o build/platform.o -ldl -o $@
 build/path-identity-test: build/platform.o tests/path_identity_test.cpp
 	$(CXX) $(CXXFLAGS) tests/path_identity_test.cpp build/platform.o -o $@
-test: build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+test: build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
 	./build/request-control-test
 	./build/bridge-timing-test
 	./build/core-test
 	./build/zip-bounds-test
 	$(MAKE) test-database
+	$(MAKE) test-item-values
 	$(MAKE) test-path-identity
 	$(MAKE) test-store-cancel
 	$(MAKE) test-import
@@ -59,3 +60,9 @@ build/store-cancel-test: $(OBJ) tests/store_cancel_test.cpp
 .PHONY: test-store-cancel
 test-store-cancel: build/store-cancel-test
 	@d=$$(mktemp -d) || exit 1; ./build/store-cancel-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+build/item-value-contract-test: $(OBJ) tests/item_value_contract_test.cpp
+	$(CXX) $(CXXFLAGS) tests/item_value_contract_test.cpp $(OBJ) -ldl -o $@
+.PHONY: test-item-values
+test-item-values: build/item-value-contract-test
+	./build/item-value-contract-test

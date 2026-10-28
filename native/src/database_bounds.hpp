@@ -2,6 +2,11 @@
 #include "core.hpp"
 #include <limits>
 namespace atlas {
+// nlohmann integer classification includes uint64_t; never narrow an out-of-range value.
+inline bool databaseSignedInteger(const J& value){
+ return value.is_number_integer()&&(!value.is_number_unsigned()||
+  value.get<uint64_t>()<=static_cast<uint64_t>(std::numeric_limits<int64_t>::max()));
+}
 inline int databaseIntLength(size_t value){
  if(value>static_cast<size_t>(std::numeric_limits<int>::max()))throw Error("資料庫內容超過可處理長度。");
  return static_cast<int>(value);

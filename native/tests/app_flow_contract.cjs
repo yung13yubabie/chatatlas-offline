@@ -46,9 +46,9 @@ const folder=cpp.slice(cpp.indexOf('fs::path folderPath('),cpp.indexOf('void rem
 assert(!folder.includes('atomicText'),'reading the selected path does not commit preferences');
 const picker=cpp.slice(cpp.indexOf('void browse()'),cpp.indexOf('fs::path chooseFile('));
 assert(!picker.includes('atomicText')&&!picker.includes('rememberArchive'),'folder selection does not commit preferences');
-const opened=cpp.slice(cpp.indexOf('std::unique_ptr<Store> openRememberedArchive'),cpp.indexOf('fs::path chooseFolder'));
-assert(opened.indexOf('std::make_unique<Store>')<opened.indexOf('rememberArchive(root)'),'only successfully opened collections become saved preference');
-assert(cpp.includes('store.history(100,offset)')&&cpp.includes('store->deleteHistory(jobId)'),'history uses bounded backend APIs');
+const opened=cpp.slice(cpp.indexOf('OpenedArchive openRememberedArchive'),cpp.indexOf('fs::path chooseFolder'));
+assert(opened.indexOf('std::make_unique<Store>')<opened.indexOf('remember(root)'),'only successfully opened collections become saved preference');
+assert(cpp.includes('store.history(100,offset)')&&cpp.includes('deleteHistoryAndRefresh(*store,jobId'),'history uses bounded backend APIs');
 assert(cpp.includes('不會刪除對話、附件或附件沿用資料')&&cpp.includes('row.value("status","")=="running"'),'history deletion disclosure and running guard exist');
 assert(cpp.includes('row.value("account","")!=app.source->account')&&cpp.includes('未變更整理設定'),'history cannot apply another account');
 assert(cpp.includes('"skip_text"')&&cpp.includes('仍讀取附件所需的識別與關聯'),'skip text has explicit metadata disclosure');
@@ -56,4 +56,16 @@ assert(cpp.includes('if(!confirmDelete())return;'),'history deletion can be canc
 assert(cpp.includes('archiveSchemaVersion(root)!=1')&&cpp.includes('if(!confirm())return std::nullopt;'),'legacy archive upgrade requires consent');
 assert(cpp.includes('ID_HISTORY_PREV')&&cpp.includes('ID_HISTORY_NEXT')&&cpp.includes('store.historyCount()'),'all retained history is reachable through paging');
 assert(!collect.includes('catch(const Cancelled&){exportHtml(s)'),'stop does not trigger an uncancellable full export');
+assert(cpp.includes('auto retained=makeZip(s,dest,[&]{app.control->check();},&readerWarning);return storeNotice(store)+readerWarning+publishedZipMessage(retained);'),'GUI consumes post-publication ZIP cleanup warning');
+assert(cpp.includes('私人資料庫暫存副本未能清除，仍保留在：'),'ZIP warning names retained private snapshot');
+
+assert(opened.includes('catch(...){opened.preferenceWarning=')&&cpp.includes('return storeNotice(*opened)+opened.preferenceWarning'),'preference failure remains a GUI notice, preserving upgrade notice');
+assert(cpp.includes('store.deleteHistory(jobId);std::string message=')&&cpp.includes('try{refresh();}catch(...)'),'history deletion commits before separately handled refresh');
+
+assert.equal((cpp.match(/exportHtml\(s,\[&\]\{app.control->check\(\);\},&readerWarning\)/g)||[]).length,3,'collect, demo and rebuild consume reader publication warnings');
+assert(cpp.includes('if(!imported.warning.empty())message+="\\n"+imported.warning;'),'published import exposes reader cleanup warning');
+assert.equal((cpp.match(/return storeNotice\(store\)\+readerWarning\+/g)||[]).length,4,'GUI reader warnings reach success text in collect, demo, rebuild and backup');
+assert(main.includes('exportHtml(store,{},&warning)')&&main.includes('warning.data(),static_cast<DWORD>(warning.size())'),'EXE --demo reports successful-export cleanup warning on stderr');
+assert.equal((cpp.match(/readerWarning\+=openPublishedReader\(page,\*app.control\)/g)||[]).length,3,'all browser-opening export branches honor postpublication Stop');
+assert(cpp.includes('if(!control.stopped.load()){open(page);return {};}')&&cpp.includes('已依停止要求略過自動開啟：'),'stopped published reader preserves location without launching browser');
 console.log('Native application flow contracts passed; interactive Windows/LINE validation remains separate.');

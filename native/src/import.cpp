@@ -85,7 +85,7 @@ ImportResult importBackup(const fs::path& givenSource,const fs::path& givenDesti
  if(relativeToDirectory(dest,source))throw Error("新的收藏不可放在原備份裡面。");
  rejectSidecars(source);auto sourceDb=source/"archive.sqlite3";{VerifiedInput in(sourceDb);if(in.size()>maxDatabase)throw Error("這份備份資料庫超過目前匯入的 1 GiB 上限。");}
  auto initial=digest(sourceDb,tick);if(initial.size>maxDatabase)throw Error("這份備份資料庫超過目前匯入的 1 GiB 上限。");auto stage=dest.parent_path()/path8(".ChatAtlas-Import-"+sha(now()+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,24));
- exclusiveDirectory(stage);auto input=stage/"source.sqlite3",payload=stage/"collection";
+ std::string readerWarning;exclusiveDirectory(stage);auto input=stage/"source.sqlite3",payload=stage/"collection";
  try{
   checkTick(tick);if(relativeToDirectory(stage,source))throw Error("新的收藏不可放在原備份裡面。");copyVerified(sourceDb,input,static_cast<int64_t>(initial.size),initial.hash,tick);
   {
@@ -93,7 +93,7 @@ ImportResult importBackup(const fs::path& givenSource,const fs::path& givenDesti
    auto identities=imported.identityProblems(tick);if(!identities.empty())throw IntegrityError("備份識別或採集狀態不正確，未完成匯入。");
    for(const auto& blob:imported.db.rows("SELECT * FROM blobs")){checkTick(tick);validateBlobPath(blob);auto rel=value(blob,"path");copyVerified(within(source,rel),within(payload,rel),blob["size"].get<int64_t>(),value(blob,"sha256"),tick);}
    auto problems=imported.check(tick,false);for(const auto& problem:problems)if(value(problem,"code")!="unreferenced")throw IntegrityError("備份的附件、關聯或內容檢查未通過，未完成匯入。");
-   exportHtml(imported,tick);
+   exportHtml(imported,tick,&readerWarning);
   }
   checkTick(tick);rejectSidecars(source);auto after=digest(sourceDb,tick);if(after.hash!=initial.hash||after.size!=initial.size)throw IntegrityError("匯入途中原備份已改變，未發布新收藏。");
   checkTick(tick);noLinks(stage);if(relativeToDirectory(dest,source))throw Error("新的收藏不可放在原備份裡面。");publishDirectory(payload,dest);
@@ -102,7 +102,7 @@ ImportResult importBackup(const fs::path& givenSource,const fs::path& givenDesti
   // Cancellation/errors here retain the stage, but cannot undo successful publication.
   fs::path retained=stage;
   try{noLinks(stage);noLinks(input);auto copy=digest(input,tick);if(copy.hash==initial.hash&&copy.size==initial.size&&fs::remove(input)&&fs::remove(stage))retained.clear();}catch(...){}
-  return {dest,retained};
+  return {dest,retained,readerWarning};
  }catch(const Cancelled&){throw ImportFailure("匯入已停止，原備份未改動；未完成的私人副本已保留。",stage,true);}
  catch(const Error& e){throw ImportFailure(std::string(e.what())+" 原備份未改動；未完成的私人副本已保留。",stage);}
  catch(...){throw ImportFailure("匯入尚未完成，原備份未改動；未完成的私人副本已保留。",stage);}

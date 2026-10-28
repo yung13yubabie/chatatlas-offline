@@ -67,7 +67,7 @@ J Db::rows(const std::string&query,const J&givenArgs,Tick tick){
  for(size_t i=0;i<args.size();i++){
   const auto&a=args[i];const int index=databaseIntLength(i+1);int rc;
   if(a.is_null())rc=s.bindNull(statement,index);
-  else if(a.is_number_integer())rc=s.bindInt(statement,index,a.get<int64_t>());
+  else if(a.is_number_integer()){if(!databaseSignedInteger(a))throw Error("資料庫整數超過可保存範圍。");rc=s.bindInt(statement,index,a.get<int64_t>());}
   else if(a.is_boolean())rc=s.bindInt(statement,index,a.get<bool>());
   else if(a.is_string()){const auto&str=a.get_ref<const std::string&>();rc=s.bindText(statement,index,str.data(),databaseIntLength(str.size()),reinterpret_cast<void(*)(void*)>(-1));}
   else throw Error("保存內容格式不正確。");

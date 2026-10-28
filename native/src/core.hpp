@@ -41,7 +41,7 @@ struct Batch{J items=J::array(),attachments=J::array();std::string coverage="unk
 class Source{public:std::string account;virtual~Source()=default;virtual J chats()=0;virtual J chatsWithControl(Control&c){c.check();auto result=chats();c.check();return result;}virtual Batch read(const J&,const std::set<std::string>&,const std::string&,const std::string&,Control&)=0;virtual fs::path download(const J&,const J&,const fs::path&,Control&)=0;};
 const std::set<std::string>allKinds={"message","album","album_item","note","comment","thread"};
 J collect(Store&,Source&,const J&,Control&,std::set<std::string> kinds=allKinds,const std::string&since="",const std::string&until="",std::function<void(std::string)>progress={},const std::string&messageMode="update");
-fs::path exportHtml(Store&,Tick={});fs::path makeZip(Store&,const fs::path&,Tick={});J downloadParts(Store&,const J&,Tick={});bool validParts(Store&,const J&,Tick={});
+fs::path exportHtml(Store&,Tick={},std::string* warning=nullptr);fs::path makeZip(Store&,const fs::path&,Tick={},std::string* warning=nullptr);J downloadParts(Store&,const J&,Tick={});bool validParts(Store&,const J&,Tick={});
 class DemoSource:public Source{int revision;public:int downloads=0;explicit DemoSource(int v=1);J chats()override;Batch read(const J&,const std::set<std::string>&,const std::string&,const std::string&,Control&)override;fs::path download(const J&,const J&,const fs::path&,Control&)override;};
 extern const char*web_template;extern const char*web_css;extern const char*web_script;extern const char*worker_script;
 }

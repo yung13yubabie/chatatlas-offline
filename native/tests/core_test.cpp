@@ -64,7 +64,9 @@ static void lifecycleTests(const fs::path&fixture){
   expect(s.summary()["items"]==count,"rejected batch leaves original item count");
   expect(s.db.rows("SELECT status FROM jobs ORDER BY id DESC LIMIT 1")[0]["status"]=="failed","rejected batch has failed job status");
   auto zip=fixture/"cancelled-backup.zip",partial=zip;partial+=".partial";
-  rejected([&]{makeZip(s,zip,[&]{if(fs::exists(partial))throw Cancelled();});},"cancel during ZIP is reported");
+  bool reachedPartial=false,caughtCancellation=false;
+  try{makeZip(s,zip,[&]{if(fs::exists(partial)){reachedPartial=true;throw Cancelled();}});}catch(const Cancelled&){caughtCancellation=true;}
+  expect(reachedPartial&&caughtCancellation,"cancel during ZIP reaches the partial output and reports Cancelled");
   expect(!fs::exists(zip)&&!fs::exists(partial),"cancelled ZIP leaves no published or partial archive");
   bool snapshot=false;for(const auto&e:fs::directory_iterator(root))if(e.path().filename().string().starts_with("backup-"))snapshot=true;
   expect(!snapshot,"cancelled ZIP removes its database snapshot");
