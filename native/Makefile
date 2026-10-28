@@ -16,7 +16,9 @@ build/database-contract-test: build/database.o build/platform.o tests/database_c
 	$(CXX) $(CXXFLAGS) tests/database_contract_test.cpp build/database.o build/platform.o -ldl -o $@
 build/path-identity-test: build/platform.o tests/path_identity_test.cpp
 	$(CXX) $(CXXFLAGS) tests/path_identity_test.cpp build/platform.o -o $@
-test: build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+test: build/blob-path-contract-test build/blob-path-store-test build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+	./build/blob-path-contract-test
+	$(MAKE) test-blob-path-store
 	./build/request-control-test
 	./build/bridge-timing-test
 	./build/core-test
@@ -66,3 +68,13 @@ build/item-value-contract-test: $(OBJ) tests/item_value_contract_test.cpp
 .PHONY: test-item-values
 test-item-values: build/item-value-contract-test
 	./build/item-value-contract-test
+
+# Storage path validation uses the same contract at registration, reuse and export.
+build/blob-path-contract-test: tests/blob_path_contract_test.cpp src/blob_path.hpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/blob_path_contract_test.cpp -o $@
+build/blob-path-store-test: $(OBJ) tests/blob_path_store_test.cpp
+	$(CXX) $(CXXFLAGS) tests/blob_path_store_test.cpp $(OBJ) -ldl -o $@
+.PHONY: test-blob-path-store
+test-blob-path-store: build/blob-path-store-test
+	@d=$$(mktemp -d) || exit 1; ./build/blob-path-store-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status

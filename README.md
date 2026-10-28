@@ -2,11 +2,11 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.5｜Windows x64 可攜預覽版**
+**0.3.1-alpha.6｜Windows x64 可攜預覽版**
 
 > 本版套件僅由通過驗收的 CI 產物發布；是否已可下載，請以本版 Release 頁的實際狀態為準。
 
-[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.5/ChatAtlas-0.3.1-alpha.5-Windows-x64-candidate.zip) · [alpha.5 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.5)
+[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.6/ChatAtlas-0.3.1-alpha.6-Windows-x64-candidate.zip) · [alpha.6 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.6)
 
 > **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
 > 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
@@ -87,7 +87,13 @@
 
 </details>
 
-## alpha.5 更新範圍
+## alpha.6 更新範圍
+
+- **附件儲存路徑一致性：** 登記、沿用、完整性檢查與下載分塊共用既有匯入的路徑規則；ZIP 寫入前另核對資產名稱與實際內容雜湊；不合規的中繼資料明確拒絕，不自動搬動、刪除或改名舊檔。
+- **先核對再修正：** alpha.5 的匯入白名單與重複匯入自動編號已存在，本版沒有重寫這兩條正常動線。詳見 [alpha.6 核對紀錄](docs/ALPHA6_REVIEW.md)。
+- **不是防毒功能：** `.bin` 可以保存任意附件位元組；另存時可能保留原始副檔名，請勿執行不可信附件。
+
+### 保留的 alpha.5 功能
 
 - **採集紀錄：** 查看已結束或中斷的整理工作，保留或刪除歷史列。刪紀錄不刪聊天與附件，也不清除去重索引；可套用舊選項後再自行開始。
 - **對話文字保存模式：** 可更新同識別的對話，或不保存新對話文字。後者適用於 message／thread，保留附件必要的最小關聯，離線頁標示「未保存對話文字」；已選取的記事本、留言等其他分類仍按原選項處理，不代表完全不讀取文字，也不是另有「只存文字、不下載附件」開關。再次整理會校驗既有完整附件，而非只憑檔名跳過。
@@ -102,9 +108,7 @@
 
 ## 驗證狀態
 
-程式來源 `c317d577ace3c1136162e4c14c9b89e465fc0198` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40680881996) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40681046984) 各三個工作均通過。包括 Linux／Windows 核心、歷史 62 項、Store 取消 27 項、Windows GUI 91 項、完整備份匯入、離線瀏覽器，以及實際封裝 EXE 的可攜與採集紀錄畫面驗證。這不是全平台或真實 LINE 驗收。
-
-文件與五張截圖加入後，仍對最終來源重新執行 CI、建置及封裝；最終發布以 Release 綁定的來源與產物為準，不直接發布較早候選包。
+alpha.6 的最終來源、原生 Windows 執行與離線瀏覽器驗收仍待本版 CI 完成；上方暫時保留明確標記為 alpha.5 的歷史實際截圖，不把舊截圖或舊測試冒充本版成果。發布前會更新為本版人工資料實際畫面。
 
 本版應核對的項目包括：
 
@@ -113,17 +117,17 @@
 - 人工 SQLite 與下載器回歸，以及離線 UI 的正常操作與 CSP 外部資源拒絕。
 - 發布四個檔案的原始 CI 位元組、`SHA256SUMS.txt` 與 GitHub 建置來源證明。
 
-最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.5) 的精確來源與驗證紀錄為準；不沿用任何前版的 CI 或雜湊。
+最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.6) 的精確來源與驗證紀錄為準；不沿用任何前版的 CI 或雜湊。
 
 <details>
 <summary>下載後如何核對來源</summary>
 
-請使用 **alpha.5 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
+請使用 **alpha.6 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
 
 發布完成且有可驗證的來源證明後，使用 GitHub CLI 的開發者可執行：
 
 ```sh
-gh attestation verify ChatAtlas-0.3.1-alpha.5-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
+gh attestation verify ChatAtlas-0.3.1-alpha.6-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
 ```
 
 建置來源證明需核對儲存庫、workflow、來源 commit 及檔案雜湊。它不是 Authenticode 簽章、防毒認證或安全認證。
@@ -171,11 +175,11 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.5 核對紀錄](docs/ALPHA5_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.6 核對紀錄](docs/ALPHA6_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
-alpha.1 至 alpha.4 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
+alpha.1 至 alpha.5 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
 
 </details>
 

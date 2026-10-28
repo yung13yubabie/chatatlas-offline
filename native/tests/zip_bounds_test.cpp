@@ -35,6 +35,25 @@ int main(){fs::path fixture;try{
  expect(little(bytes,185,4)==0x07064b50&&little(bytes,193,8)==129&&little(bytes,205,4)==0x06054b50&&bytes.size()==227,"locator and legacy EOCD");
  {Zip zip(fixture/"names.zip");rejects([&]{zip.add(source,std::string(65536,'n'),{});},"writer long name rejection");zip.add(source,std::string(65535,'n'),{});zip.close();}expect(little(readText(fixture/"names.zip"),26,2)==65535,"writer maximum name");
 
+ // Bind content-addressed asset member names to the bytes being archived.
+ // These are inert synthetic bytes; suffix validation is not malware detection.
+ const auto asset=fixture/"inert-asset";{std::ofstream f(asset);f<<"old harmless";}
+ const auto oldAsset=digest(asset);const auto assetPrefix="assets/"+oldAsset.hash.substr(0,2)+"/"+oldAsset.hash;
+ {Zip zip(fixture/"asset-suffixes.zip");for(const auto*ext:{"png","jpg","gif","webp","wav","ogg","mp3","mp4","bin"})zip.add(asset,assetPrefix+"."+ext,{});zip.close();}
+ auto assetZip=readText(fixture/"asset-suffixes.zip");expect(little(assetZip,assetZip.size()-14,2)==9,"all nine canonical asset suffixes remain supported");
+ for(const auto*ext:{"png","jpg","gif","webp","wav","ogg","mp3","mp4","bin"})expect(assetZip.find(assetPrefix+"."+ext)!=std::string::npos,"canonical asset member retained");
+ auto rejectAsset=[&](const std::string&name,const std::string&label){const auto path=fixture/(label+".zip");bool rejected=false;{Zip zip(path);try{zip.add(asset,name,{});}catch(const IntegrityError&){rejected=true;}zip.close();}expect(rejected,"bad asset identity explicitly rejected");auto rejectedZip=readText(path);expect(rejectedZip.size()==98&&little(rejectedZip,0,4)==0x06064b50&&little(rejectedZip,24,8)==0,"rejection writes no member header or directory entry");};
+ rejectAsset("assets/00/"+std::string(64,'0')+".bin","wrong-hash");
+ rejectAsset("assets/"+(oldAsset.hash.substr(0,2)=="ff"?std::string("00"):std::string("ff"))+"/"+oldAsset.hash+".bin","wrong-prefix");
+ rejectAsset("assets/noncanonical.bin","noncanonical-name");rejectAsset(assetPrefix+".html","unapproved-suffix");
+ // Simulate the serializer boundary after a previously successful preflight.
+ // No Store is opened, and no Store location guard is bypassed.
+ {std::ofstream f(asset,std::ios::trunc);f<<"new harmless";}
+ expect(digest(asset).hash!=oldAsset.hash,"fixture changed after old digest was recorded");
+ rejectAsset(assetPrefix+".bin","changed-after-preflight");
+ {Zip zip(fixture/"ordinary-members.zip");zip.add(asset,"archive.sqlite3",{});zip.add(asset,"reader/generation.js",{});zip.add(asset,"downloads/chunk.js",{});zip.close();}
+ auto ordinary=readText(fixture/"ordinary-members.zip");expect(little(ordinary,ordinary.size()-14,2)==3&&ordinary.find("new harmless")!=std::string::npos,"nonasset members retain existing behavior");
+
  const auto cancelled=fixture/"cancelled.zip",partial=fixture/"cancelled.partial";int centralTicks=0;bool cancelledCaught=false;
  try{{Zip zip(partial);zip.add(source,"a",{});zip.add(source,"b",{});zip.close([&]{if(++centralTicks==2)throw Cancelled();});}publishNew(partial,cancelled);}catch(const Cancelled&){cancelledCaught=true;fs::remove(partial);}
  expect(cancelledCaught&&centralTicks==2&&!fs::exists(cancelled)&&!fs::exists(partial),"central directory cancellation prevents publication");

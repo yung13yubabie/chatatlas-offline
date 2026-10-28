@@ -9,6 +9,8 @@ if(execFileSync(zig,['version'],{encoding:'utf8'}).trim()!=='0.14.1')throw Error
 fs.mkdirSync(path.join(ROOT,'native/build'),{recursive:true});
 const base=['c++','-std=c++20','-O1','-fstack-protector-strong','-DUNICODE','-D_UNICODE','-Isrc','-Iinclude','-Ivendor'];
 function run(args){execFileSync(zig,[...base,...args],{cwd:path.join(ROOT,'native'),stdio:'inherit'});}
+run(['tests/blob_path_contract_test.cpp','-o','build/blob-path-contract-test.exe']);
+execFileSync(path.join(ROOT,'native/build/blob-path-contract-test.exe'),[],{stdio:'inherit'});
 run(['tests/bridge_timing_test.cpp','-o','build/bridge-timing-test.exe']);
 execFileSync(path.join(ROOT,'native/build/bridge-timing-test.exe'),[],{stdio:'inherit'});
 run(['tests/request_control_test.cpp','-o','build/request-control-test.exe']);
@@ -43,7 +45,7 @@ const uiFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-ui-dpi-'));
 try{const exe=path.join(uiFixture,'windows-ui-test.exe');fs.copyFileSync(path.join(ROOT,'native/build/windows-ui-test.exe'),exe);execFileSync(exe,[],{cwd:uiFixture,stdio:'inherit'});}finally{fs.rmSync(uiFixture,{recursive:true,force:true});}
 
 // New history and extracted-backup import use only artificial owned fixtures.
-for(const [name,prefix] of [['store_cancel','chatatlas-store-cancel-'],['import','chatatlas-import-'],['capture_history','chatatlas-capture-history-']]){
+for(const [name,prefix] of [['blob_path_store','chatatlas-blob-path-store-'],['store_cancel','chatatlas-store-cancel-'],['import','chatatlas-import-'],['capture_history','chatatlas-capture-history-']]){
  run([...common,'tests/'+name+'_test.cpp','-ladvapi32','-o','build/'+name+'-test.exe']);
  const fixture=fs.mkdtempSync(path.join(os.tmpdir(),prefix));
  try{execFileSync(path.join(ROOT,'native/build/'+name+'-test.exe'),[fixture],{stdio:'inherit'});}finally{fs.rmSync(fixture,{recursive:true,force:true});}

@@ -1,4 +1,5 @@
 #include "import.hpp"
+#include "blob_path.hpp"
 #include "file.hpp"
 #include <algorithm>
 #include <cctype>
@@ -71,8 +72,7 @@ void transferRows(Db& from,Store& to,const std::set<std::string>& present,Tick t
 }
 void validateBlobPath(const J& blob){
  auto hash=value(blob,"sha256"),name=value(blob,"path");if(!canonicalHash(hash)||!blob["size"].is_number_integer()||blob["size"].get<int64_t>()<0)throw IntegrityError("備份附件校驗資料不正確。");
- const auto prefix="assets/"+hash.substr(0,2)+"/"+hash;bool good=false;for(auto ext:{".png",".jpg",".gif",".webp",".wav",".ogg",".mp3",".mp4",".bin"})if(name==prefix+ext)good=true;
- if(!good)throw IntegrityError("備份附件位置不正確，未讀取該位置。");
+ if(!canonicalBlobPath(name,hash))throw IntegrityError("備份附件位置不正確，未讀取該位置。");
 }
 } // namespace
 ImportResult importBackup(const fs::path& givenSource,const fs::path& givenDestination,Tick tick){

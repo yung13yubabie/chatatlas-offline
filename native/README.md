@@ -57,3 +57,6 @@ attestation 是建置來源證明，不是 Authenticode 簽章或安全認證。
 
 nlohmann/json 3.12.0 標頭授權在 `vendor/`，執行環境告示見根目錄 `licenses/`。
 舊 Python 實作及測試僅保留歷史參考；全部 CI、原生建置及發布流程均不執行它們。
+
+附件儲存路徑契約測試：`build/blob-path-contract-test` 不開啟收藏；
+`make -C native test-blob-path-store` 在全新私人暫存目錄驗證登記、沿用、快取、HTML 與 ZIP 拒絕邊界。兩者已接入 Linux 與 Windows 原生測試；全數使用人工資料，不能視為防毒或真實 LINE 採集驗收。
