@@ -1,6 +1,6 @@
 # 聊藏原生開發
 
-目前版本：0.3.1-alpha.2。原生 Windows EXE 不啟動 Python 或 Node.js；原生建置與打包也不需 Python。
+版本以根目錄 VERSION 與對應 Release 為準。原生 Windows EXE 不啟動 Python 或 Node.js；原生建置與打包也不需 Python。
 
 ## Windows x64 建置
 
