@@ -19,7 +19,7 @@ Bridge::Bridge(){
   wchar_t dir[MAX_PATH];auto count=GetSystemDirectoryW(dir,MAX_PATH);
   if(!count||count>=MAX_PATH)throw CapabilityError("無法找到本機連線元件。");
   auto exe=fs::path(dir)/L"WindowsPowerShell/v1.0/powershell.exe";
-  const std::wstring bootstrap=L"[Console]::InputEncoding=New-Object System.Text.UTF8Encoding($false);$worker=[Console]::ReadLine();& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($worker))))";
+  const std::wstring bootstrap=L"$ChatAtlasInput=[IO.StreamReader]::new([Console]::OpenStandardInput(),[Text.UTF8Encoding]::new($false,$true),$true);[Console]::SetIn($ChatAtlasInput);$worker=[Console]::ReadLine();& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($worker))))";
   std::wstring command=quote(exe.wstring())+L" -NoLogo -NoProfile -NonInteractive -Command "+quote(bootstrap);
   STARTUPINFOW si{};si.cb=sizeof si;si.dwFlags=STARTF_USESTDHANDLES;si.hStdInput=childRead;si.hStdOutput=childWrite;si.hStdError=error;
   if(!CreateProcessW(exe.c_str(),command.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW,nullptr,nullptr,&si,&pi))throw CapabilityError("無法啟動本機連線，請查看 Windows 是否允許執行。");

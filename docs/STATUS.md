@@ -9,7 +9,7 @@
 - 原生 build 加入 strong stack protector；CFG 仍未啟用，Authenticode 仍未簽章。
 - Actions 原本已釘選完整 commit SHA；本版保留釘選並新增 tag 建置、原生打包與受限權限的 build attestation。
 - GitHub attestation 必須由實際成功執行的 workflow 產生並驗證，不能只靠本文件或本機 JSON 宣稱存在。
-- 本版 CI / Windows 合成測試結果尚待本版 commit 的實際執行；不能沿用前版測試通過聲明。
+- 發布是否通過驗收，以 Release 頁所列精確 commit 的 CI 結果為準；必須同時通過來源、Windows 合成測試與實際發布 EXE 測試，不能沿用前版結果。
 
 ## 本機可確認與限制
 
@@ -28,7 +28,8 @@ alpha.1 的 source checks 六個 job 及 native build 已通過，舊版文件�
 
 ## 未完成驗收
 
-真實 Windows GUI、完整 LINE 自動採集、版面設定與多 GB 附件尚未實機驗收。
+CI 包含原生視窗啟動、必要控制項與正常關閉測試；它不等於使用者電腦上的完整互動驗收。
+個人 Windows 環境、完整 LINE 自動採集、版面設定與多 GB 附件仍需另外實機驗收。
 本次不是深入獨立安全稽核，未宣稱沒有暗門、沒有漏洞或任何情況都不會外連。
 檔案雜湊、重編譯比對、PE 匯入表及 CSP 各自只有有限證明範圍。
 

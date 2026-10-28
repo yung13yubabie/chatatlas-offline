@@ -1,7 +1,13 @@
 ﻿$ErrorActionPreference = 'Stop'
-# Preserve the bootstrap's buffered stdin reader if it already uses UTF-8.
-if ([Console]::InputEncoding.CodePage -ne 65001) { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false) }
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+# Use redirected streams directly: no console window/code-page API is required.
+# Reuse the bootstrap reader so a queued first request is never discarded.
+if ($null -eq $ChatAtlasInput) {
+ $ChatAtlasInput=[IO.StreamReader]::new([Console]::OpenStandardInput(),[Text.UTF8Encoding]::new($false,$true),$true)
+}
+[Console]::SetIn($ChatAtlasInput)
+$ChatAtlasOutput=[IO.StreamWriter]::new([Console]::OpenStandardOutput(),[Text.UTF8Encoding]::new($false))
+$ChatAtlasOutput.AutoFlush=$true
+[Console]::SetOut($ChatAtlasOutput)
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type @'

@@ -47,17 +47,21 @@ $cpp=[IO.File]::ReadAllText((Join-Path $PSScriptRoot '../src/windows_source.cpp'
 $match=[regex]::Match($cpp,'const std::wstring bootstrap=L"([^"\r\n]+)";')
 if (!$match.Success) { throw 'bootstrap_not_found' }
 $bootstrap=$match.Groups[1].Value
-$testWorker=@'
-if ([Console]::InputEncoding.CodePage -ne 65001) { [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false) }
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+# Exercise the production stream initialization, not a separately copied version.
+$workerSource=[IO.File]::ReadAllText((Resolve-Path $source))
+$preamble=$workerSource.Substring(0,$workerSource.IndexOf('Add-Type -AssemblyName UIAutomationClient'))
+$testWorker=$preamble+@'
 $first=[Console]::ReadLine()
+$second=[Console]::ReadLine()
 [Console]::WriteLine('received:'+ $first)
+[Console]::WriteLine('unicode:'+ $second)
 '@
 $start=New-Object System.Diagnostics.ProcessStartInfo
 $start.FileName=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
 $start.Arguments='-NoLogo -NoProfile -NonInteractive -Command "'+$bootstrap+'"'
 $start.UseShellExecute=$false; $start.CreateNoWindow=$true
 $start.RedirectStandardInput=$true; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+$start.StandardOutputEncoding=[Text.UTF8Encoding]::new($false,$true)
 $child=New-Object System.Diagnostics.Process; $child.StartInfo=$start
 $started=$false
 try {
@@ -67,7 +71,9 @@ try {
  $payload=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($testWorker))
  # Match native WriteFile exactly: inherited StreamWriter encoding/BOM is not
  # part of the C++ protocol. Send both records together to exercise buffering.
- $wire=[Text.Encoding]::UTF8.GetBytes($payload+"`n"+'queued-request'+"`n")
+ # Build Chinese test data from code points, keeping this PS 5.1 test ASCII-safe.
+ $unicodeRequest=([string][char]0x6e2c)+([char]0x8a66)+([char]0x4e2d)+([char]0x6587)
+ $wire=[Text.Encoding]::UTF8.GetBytes($payload+"`n"+'queued-request'+"`n"+$unicodeRequest+"`n")
  $child.StandardInput.BaseStream.Write($wire,0,$wire.Length)
  $child.StandardInput.BaseStream.Flush()
  $line=$child.StandardOutput.ReadLineAsync()
@@ -80,6 +86,13 @@ try {
   $exitCode=if($child.HasExited){$child.ExitCode}else{$null}
   Write-Output (@{test='bootstrap';completed=$completed;stdout=$received;stderr=$errorText;exit_code=$exitCode;writer_codepage=$child.StandardInput.Encoding.CodePage;writer_preamble=[Convert]::ToBase64String($child.StandardInput.Encoding.GetPreamble())} | ConvertTo-Json -Compress)
   throw 'bootstrap_roundtrip_failed'
+ }
+ $unicodeLine=$child.StandardOutput.ReadLineAsync()
+ $unicodeCompleted=$unicodeLine.Wait(10000)
+ $unicodeReceived=if($unicodeCompleted){$unicodeLine.Result}else{$null}
+ if (!$unicodeCompleted -or $unicodeReceived -cne ('unicode:'+$unicodeRequest)) {
+  Write-Output (@{test='bootstrap_unicode';completed=$unicodeCompleted;stdout=$unicodeReceived;expected=('unicode:'+$unicodeRequest)} | ConvertTo-Json -Compress)
+  throw 'bootstrap_unicode_roundtrip_failed'
  }
  if (!$child.WaitForExit(5000) -or $child.ExitCode -ne 0) {
   if (!$child.HasExited) { $child.Kill(); [void]$child.WaitForExit(5000) }

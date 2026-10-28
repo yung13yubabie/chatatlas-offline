@@ -17,3 +17,9 @@ assert(final>ps.indexOf('    Assert-SaveDialog $dialog',ps.indexOf('$invoke=')))
 assert(final>ps.indexOf('    Assert-SaveDestination $valuePattern $dest',ps.indexOf('$invoke=')));
 assert(ps.includes('if (@(Get-LineDialogs).Count -ne 0)'));
 console.log('Native bridge source contracts passed (not Windows runtime validation).');
+
+assert(cpp.includes('[IO.StreamReader]::new([Console]::OpenStandardInput()'));
+assert(!cpp.includes('[Console]::InputEncoding='));
+assert(!ps.includes('[Console]::InputEncoding ='));
+assert(ps.includes('[Console]::SetIn($ChatAtlasInput)'));
+assert(ps.includes('[Console]::SetOut($ChatAtlasOutput)'));
