@@ -11,6 +11,12 @@
 > **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
 > 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
 
+## 原始碼新增：匯入 LINE 本機訊息
+
+目前原始碼可透過 [line-summary](https://github.com/yung13yubabie/line-summary) 唯讀取得已授權的 Windows LINE 本機訊息，匯出後在聊藏按「載入 LINE 本機匯出」，沿用聊天室選擇、收藏與離線地圖流程。這條路徑不需要 LINE 版面設定；聊藏 EXE 本身尚未直接解密 `.edb`。
+
+此功能需從新版原始碼建置，**上方已發布的 alpha.7 ZIP 不會因此增加功能**。目前涵蓋文字與非文字訊息的標示，不包含附件原檔、相簿、記事本或全部雲端歷史。操作方式、匯出環境與驗證限制見 [LINE 本機資料匯入說明](docs/LINE_DATABASE_IMPORT.md)。
+
 ## 下載後怎麼開
 
 1. 發布完成後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
@@ -184,7 +190,7 @@ gh attestation verify ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip --repo y
 <details>
 <summary>原始碼位置、建置與測試</summary>
 
-原生 Windows 程式位於 `native/`，共用閱讀頁位於 `src/line_vault/web/`。舊 Python 實作僅留作歷史來源參考，不會被原生 EXE、CI 或發布管線載入；請勿使用歷史 Python 啟動入口。
+原生 Windows 程式位於 `native/`，共用閱讀頁位於 `src/line_vault/web/`。舊 Python 實作僅留作歷史來源參考，不會被原生 EXE、CI 或發布管線載入；請勿使用歷史 Python 啟動入口。新增的 `tools/export_line_summary.py` 是獨立、選用的匯出工具，使用 line-summary 的既有 Python 環境，不會由 EXE 啟動。
 
 建置需要 **Zig 0.14.1**、Node.js；Linux 核心測試另需 GNU C++20、make 與系統 SQLite。以下是開發者操作，**不是使用者開啟 EXE 時會執行的安裝流程**：
 
@@ -199,7 +205,7 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。核心、瀏覽器及 Windows 建置流程使用 C++、Node.js 與 PowerShell；獨立的 `line-summary-export` CI 工作使用 Python 3 標準函式庫測試選用匯出工具，不讀取真實 LINE。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 

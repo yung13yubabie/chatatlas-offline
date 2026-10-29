@@ -90,6 +90,19 @@ int main(){try{
  app.report=earlierReport;cancelledProbe=false;try{refreshProbeReport([&](Control* control)->J{control->stopped=true;return earlierReport;});}catch(const Cancelled&){cancelledProbe=true;}requireUi(cancelledProbe&&app.report.is_null(),"stop after inspection but before publication discards result");
  bool inspectedAfterStop=false;app.report=earlierReport;try{refreshProbeReport([&](Control*)->J{inspectedAfterStop=true;return earlierReport;});}catch(const Cancelled&){}requireUi(!inspectedAfterStop&&app.report.is_null(),"already stopped probe clears old report without inspecting");
  app.control=std::make_shared<Control>();const J freshReport={{"version","synthetic-new"},{"publisher_verified",true}};refreshProbeReport([&](Control*){return freshReport;});requireUi(app.report==freshReport&&safeJson(app.report)!=priorProbeBytes,"successful re-probe replaces old data and normal export serialization works");
+ // The real chat-result handler configures an imported source without opening LINE.
+ auto snapshotFile=app.config/L"synthetic-line-import.json";
+ J snapshot={{"format","chatatlas.line-summary"},{"schema",1},{"account_id","synthetic-ui-line"},{"chat",{{"source_id","synthetic-chat"},{"title","人工本機對話"},{"kind","group"}}},{"since","2026-10-28T08:30:00+08:00"},{"until","2026-10-28T09:45:00+08:00"},{"local_range_complete",true},{"messages",J::array()}};
+ atomicText(snapshotFile,snapshot.dump());auto snapshotSource=std::make_shared<LineSummarySource>(snapshotFile);
+ auto connection=new ConnectionResult{snapshotSource,snapshotSource->chats()};SendMessageW(window,MSG_CHATS,0,reinterpret_cast<LPARAM>(connection));taskControls(false);
+ requireUi(app.source==snapshotSource&&app.checked.count("synthetic-chat"),"UI receives imported source and selects its chat");
+ requireUi(SendMessageW(GetDlgItem(window,ID_MESSAGES),BM_GETCHECK,0,0)==BST_CHECKED&&SendMessageW(GetDlgItem(window,ID_ALBUMS),BM_GETCHECK,0,0)==BST_UNCHECKED&&SendMessageW(GetDlgItem(window,ID_NOTES),BM_GETCHECK,0,0)==BST_UNCHECKED,"import defaults to supported message content");
+ requireUi(!IsWindowEnabled(GetDlgItem(window,ID_ALBUMS))&&!IsWindowEnabled(GetDlgItem(window,ID_NOTES)),"unsupported import categories remain disabled after task completion");
+ requireUi(dateRange(ID_FROM,false).empty()&&dateRange(ID_UNTIL,true).empty(),"import clears stale dates so exact snapshot bounds apply, including intraday ranges");
+ auto uncreated=app.config/L"ImportUncreated";SetWindowTextW(app.folder,uncreated.c_str());SYSTEMTIME broader{};broader.wYear=2020;broader.wMonth=1;broader.wDay=1;SendMessageW(GetDlgItem(window,ID_FROM),DTM_SETSYSTEMTIME,GDT_VALID,reinterpret_cast<LPARAM>(&broader));bool outsideRejected=false;
+ try{collectClicked([](const fs::path&){return true;});}catch(const Error&){outsideRejected=true;}requireUi(outsideRejected&&!app.busy&&!fs::exists(uncreated),"expanded import scope fails before creating a collection");
+ SendMessageW(GetDlgItem(window,ID_FROM),DTM_SETSYSTEMTIME,GDT_NONE,0);collectClicked([](const fs::path&){return false;});requireUi(!app.busy&&!fs::exists(uncreated),"exact intraday import scope reaches cancellable collection selection");
+ clearConnection();taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_ALBUMS))&&IsWindowEnabled(GetDlgItem(window,ID_NOTES)),"disconnect restores categories for other sources");
  auto originalConfig=app.config;requireUi(originalConfig.filename()==L"ChatAtlasData"&&originalConfig.parent_path()==executableDirectory(),"DPI changes preserve portable data location");
  DestroyWindow(window);CoUninitialize();std::cout<<checks<<" Win32 synthetic DPI checks passed; real multi-monitor and OS-version matrix remain separate.\n";return 0;
  }catch(const std::exception&e){if(app.window&&IsWindow(app.window))DestroyWindow(app.window);std::cerr<<e.what()<<"\n";return 1;}}

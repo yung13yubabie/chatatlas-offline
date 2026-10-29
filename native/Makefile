@@ -1,6 +1,6 @@
 CXX ?= g++
 CXXFLAGS = -std=c++20 -O0 -g -DJSON_DIAGNOSTICS=1 -Isrc -Iinclude -Ivendor
-SRC = platform database store archive zip demo bundle import
+SRC = platform database store archive zip demo bundle import line_summary
 OBJ = $(addprefix build/,$(addsuffix .o,$(SRC)))
 all: build/core-test
 build/%.o: src/%.cpp $(wildcard src/*.hpp)
@@ -50,6 +50,13 @@ test-capture-history: build/capture-history-test
 	@d=$$(mktemp -d) || exit 1; ./build/capture-history-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
 test-import: build/import-test
 	@d=$$(mktemp -d) || exit 1; ./build/import-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+build/line-summary-test: $(OBJ) tests/line_summary_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_summary_test.cpp $(OBJ) -ldl -o $@
+.PHONY: test-line-summary
+test: test-line-summary
+test-line-summary: build/line-summary-test
+	@d=$$(mktemp -d) || exit 1; ./build/line-summary-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
 
 build/bridge-timing-test: tests/bridge_timing_test.cpp src/bridge_timing.hpp
 	@mkdir -p build
