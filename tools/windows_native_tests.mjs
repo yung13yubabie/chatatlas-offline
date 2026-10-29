@@ -23,6 +23,8 @@ const objectRoot='build/windows-common';fs.mkdirSync(path.join(ROOT,'native',obj
 const objects=new Map();for(const source of sources){const object=objectRoot+'/'+path.basename(source,'.cpp')+'.o';run(['-c',source,'-o',object]);objects.set(source,object);}
 const common=[...objects.values()];
 const object=name=>objects.get('src/'+name+'.cpp');
+run([...common,'tests/time_contract_test.cpp','-ladvapi32','-o','build/time-contract-test.exe']);
+execFileSync(path.join(ROOT,'native/build/time-contract-test.exe'),[],{stdio:'inherit'});
 run([object('platform'),'tests/windows_private_path_test.cpp','-ladvapi32','-o','build/windows-private-path-test.exe']);
 const privatePathFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-private-path-'));
 try{execFileSync(path.join(ROOT,'native/build/windows-private-path-test.exe'),[privatePathFixture],{stdio:'inherit'});}finally{fs.rmSync(privatePathFixture,{recursive:true,force:true});}

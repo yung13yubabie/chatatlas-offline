@@ -16,7 +16,8 @@ build/database-contract-test: build/database.o build/platform.o tests/database_c
 	$(CXX) $(CXXFLAGS) tests/database_contract_test.cpp build/database.o build/platform.o -ldl -o $@
 build/path-identity-test: build/platform.o tests/path_identity_test.cpp
 	$(CXX) $(CXXFLAGS) tests/path_identity_test.cpp build/platform.o -o $@
-test: build/private-path-contract-test build/blob-path-contract-test build/blob-path-store-test build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+test: build/time-contract-test build/private-path-contract-test build/blob-path-contract-test build/blob-path-store-test build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+	./build/time-contract-test
 	./build/private-path-contract-test
 	./build/blob-path-contract-test
 	$(MAKE) test-blob-path-store
@@ -84,3 +85,6 @@ test-blob-path-store: build/blob-path-store-test
 build/private-path-contract-test: tests/private_path_contract_test.cpp src/private_path.hpp
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) tests/private_path_contract_test.cpp -o $@
+
+build/time-contract-test: $(OBJ) tests/time_contract_test.cpp
+	$(CXX) $(CXXFLAGS) tests/time_contract_test.cpp $(OBJ) -ldl -o $@

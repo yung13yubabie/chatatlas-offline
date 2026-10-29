@@ -28,24 +28,69 @@ std::string key(const std::vector<std::string>&parts){std::string value="[";for(
 std::string utf8(const fs::path&p){auto s=p.u8string();return std::string(s.begin(),s.end());}fs::path path8(const std::string&s){return fs::path(std::u8string(reinterpret_cast<const char8_t*>(s.data()),s.size()));}
 std::string now(){auto t=std::chrono::system_clock::now();time_t tt=std::chrono::system_clock::to_time_t(t);std::tm tm{};
 #ifdef _WIN32
- gmtime_s(&tm,&tt);
+ if(gmtime_s(&tm,&tt)!=0)throw Error("系統時間無法轉換，請檢查電腦時間。");
 #else
- gmtime_r(&tt,&tm);
+ if(!gmtime_r(&tt,&tm))throw Error("系統時間無法轉換，請檢查電腦時間。");
 #endif
- char out[64];std::strftime(out,sizeof out,"%Y-%m-%dT%H:%M:%S",&tm);return std::string(out)+".000+00:00";}
-void noLinks(const fs::path&given){auto p=fs::absolute(given).lexically_normal();while(!p.empty()){
+ char out[64]{};if(std::strftime(out,sizeof out,"%Y-%m-%dT%H:%M:%S",&tm)!=19)throw Error("系統時間無法格式化，請檢查電腦時間。");return std::string(out)+".000+00:00";}
+fs::path absoluteNormalizedPath(const fs::path& given){
+#ifdef _WIN32
+ auto raw=given.wstring();for(auto& c:raw)if(c==L'/')c=L'\\';
+ if(raw.rfind(L"\\\\?\\",0)==0){
+  // libc++ parses \\? as a UNC root. Reassembling the C: component via /=
+  // replaces that root and yields a drive-relative path. Normalize the DOS or
+  // ordinary UNC portion separately, then restore the extended prefix.
+  if(privatePathKind(raw)==PrivatePathKind::drive)return fs::path(L"\\\\?\\"+fs::path(raw.substr(4)).lexically_normal().wstring());
+  auto prefix=raw.substr(4,4);for(auto& c:prefix)if(c>=L'a'&&c<=L'z')c-=L'a'-L'A';
+  if(prefix==L"UNC\\"){
+   // Keep the server/share root outside lexical normalization. libc++ treats
+   // the share as an ordinary filename, so normalizing it could cross shares.
+   auto serverEnd=raw.find(L'\\',8);if(serverEnd==std::wstring::npos||serverEnd==8)throw Error("網路資料夾位置格式不正確。");
+   auto shareEnd=raw.find(L'\\',serverEnd+1);if(shareEnd==std::wstring::npos)shareEnd=raw.size();
+   if(shareEnd==serverEnd+1)throw Error("網路資料夾位置格式不正確。");
+   auto suffix=shareEnd==raw.size()?std::wstring():raw.substr(shareEnd+1);
+   size_t depth=0;for(size_t start=0;start<=suffix.size();){auto end=suffix.find(L'\\',start);if(end==std::wstring::npos)end=suffix.size();auto part=suffix.substr(start,end-start);
+    if(part==L".."){if(!depth)throw Error("網路資料夾位置不可超出共用根目錄。");--depth;}else if(!part.empty()&&part!=L".")++depth;
+    if(end==suffix.size())break;start=end+1;
+   }
+   auto normalized=fs::path(L"X:\\"+suffix).lexically_normal().wstring();
+   if(normalized.rfind(L"X:\\",0)!=0)throw Error("網路資料夾位置格式不正確。");
+   return fs::path(L"\\\\?\\UNC\\"+raw.substr(8,shareEnd-8)+L"\\"+normalized.substr(3));
+  }
+ }
+#endif
+ return fs::absolute(given).lexically_normal();
+}
+fs::path parentDirectoryPath(const fs::path& given){
+#ifdef _WIN32
+ auto raw=given.wstring();for(auto& c:raw)if(c==L'/')c=L'\\';
+ if(raw.rfind(L"\\\\?\\",0)==0){
+  auto prefix=raw.substr(4,4);for(auto& c:prefix)if(c>=L'a'&&c<=L'z')c-=L'a'-L'A';
+  if(privatePathKind(raw)==PrivatePathKind::drive||prefix==L"UNC\\"){
+   auto normalized=absoluteNormalizedPath(given);auto spelling=normalized.wstring();auto parent=finalDirectoryParent(spelling);
+   if(!parent)return normalized;
+   // Match parent_path's trailing-separator semantics: the parent of dir/ is
+   // dir itself, not dir's parent. Keep a volume/share root unchanged.
+   if(!spelling.empty()&&spelling.back()==L'\\'){while(spelling.back()==L'\\')spelling.pop_back();return fs::path(spelling);}
+   return parent->first;
+  }
+ }
+#endif
+ return given.parent_path();
+}
+void noLinks(const fs::path&given){auto p=absoluteNormalizedPath(given);while(!p.empty()){
 #ifdef _WIN32
  DWORD attr=GetFileAttributesW(p.c_str());if(attr!=INVALID_FILE_ATTRIBUTES&&(attr&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("保存位置包含雲端同步標記或連結，請改用未同步的一般本機私人資料夾；例如已開啟 OneDrive 同步的桌面或文件需另選位置。");
 #else
  std::error_code ec;if(fs::is_symlink(fs::symlink_status(p,ec)))throw Error("保存位置包含雲端同步標記或連結，請改用未同步的一般本機私人資料夾；例如已開啟 OneDrive 同步的桌面或文件需另選位置。");
 #endif
- auto next=p.parent_path();if(next==p)break;p=next;}}
+ auto next=parentDirectoryPath(p);if(next==p)break;p=next;}}
 // Compare directory identities while walking the resolved ancestry. A lexical
 // prefix is insufficient for case variants, short names, subst and case-sensitive
 // NTFS directories. Handles deliberately omit FILE_SHARE_DELETE while inspected;
 // this is a bounded validation, not a promise against all later ancestor races.
 std::optional<fs::path> relativeToDirectory(const fs::path& target,const fs::path& root){
- auto full=fs::absolute(target).lexically_normal();auto base=fs::absolute(root).lexically_normal();
+ auto full=absoluteNormalizedPath(target);auto base=absoluteNormalizedPath(root);
  noLinks(full);noLinks(base);fs::path suffix;
 #ifdef _WIN32
  struct DirectoryHandle{HANDLE value=INVALID_HANDLE_VALUE;~DirectoryHandle(){if(value!=INVALID_HANDLE_VALUE)CloseHandle(value);}};
@@ -67,7 +112,7 @@ std::optional<fs::path> relativeToDirectory(const fs::path& target,const fs::pat
    if(attr&FILE_ATTRIBUTE_DIRECTORY)break;
    if(ancestor!=full)throw Error("保存位置的上一層不是資料夾。");
   }else{auto error=GetLastError();if(error!=ERROR_FILE_NOT_FOUND&&error!=ERROR_PATH_NOT_FOUND)throw Error("無法確認保存位置，請檢查存取權限。");}
-  auto parent=ancestor.parent_path();if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置。");
+  auto parent=parentDirectoryPath(ancestor);if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置。");
   suffix=suffix.empty()?ancestor.filename():ancestor.filename()/suffix;ancestor=parent;
  }
  DirectoryHandle current;auto currentInfo=openDirectory(current,ancestor);auto resolved=fs::path(finalHandlePath(current.value));
@@ -83,14 +128,14 @@ std::optional<fs::path> relativeToDirectory(const fs::path& target,const fs::pat
  std::error_code ec;auto ancestor=full;
  while(!fs::is_directory(ancestor,ec)){
   if(ec&&ec!=std::errc::no_such_file_or_directory)throw Error("無法確認保存位置。");
-  ec.clear();auto parent=ancestor.parent_path();if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置。");
+  ec.clear();auto parent=parentDirectoryPath(ancestor);if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置。");
   suffix=suffix.empty()?ancestor.filename():ancestor.filename()/suffix;ancestor=parent;
  }
  if(!fs::is_directory(base))throw Error("參考位置不是資料夾。");
  auto resolved=fs::canonical(ancestor);auto baseResolved=fs::canonical(base);
  while(true){
   if(fs::equivalent(resolved,baseResolved))return suffix.empty()?fs::path("."):suffix;
-  auto parent=resolved.parent_path();if(parent.empty()||parent==resolved)return std::nullopt;
+  auto parent=parentDirectoryPath(resolved);if(parent.empty()||parent==resolved)return std::nullopt;
   suffix=suffix.empty()?resolved.filename():resolved.filename()/suffix;resolved=parent;
  }
 #endif
@@ -99,11 +144,11 @@ fs::path privateDir(fs::path p){
 #ifdef _WIN32
  requireLocalPrivatePath(p);
 #endif
- p=fs::absolute(p).lexically_normal();noLinks(p);
+ p=absoluteNormalizedPath(p);noLinks(p);
  // Only protect a directory created by this call. Existing destination parents
  // may be shared system or user folders; changing their permissions is unsafe.
  #ifdef _WIN32
- if(!fs::exists(p)){privateDir(p.parent_path());PrivateSecurity security;if(!CreateDirectoryW(p.c_str(),&security.attributes)&&GetLastError()!=ERROR_ALREADY_EXISTS)throw Error("無法建立私人資料夾。");}
+ if(!fs::exists(p)){auto parent=parentDirectoryPath(p);if(parent.empty()||parent==p)throw Error("無法建立私人資料夾，請選擇已掛載的本機磁碟。");privateDir(parent);PrivateSecurity security;if(!CreateDirectoryW(p.c_str(),&security.attributes)&&GetLastError()!=ERROR_ALREADY_EXISTS)throw Error("無法建立私人資料夾。");}
  noLinks(p);
  #else
  if(fs::create_directories(p)){
@@ -117,9 +162,9 @@ static bool reservedDevice(std::string stem){
  if(stem.rfind("COM",0)!=0&&stem.rfind("LPT",0)!=0)return false;
  auto number=stem.substr(3);return (number.size()==1&&number[0]>='1'&&number[0]<='9')||number=="¹"||number=="²"||number=="³";
 }
-fs::path within(const fs::path&root,const std::string&name){auto rel=path8(name);if(name.empty()||rel.is_absolute()||rel.has_root_name()||name.find('\\')!=std::string::npos||name.find(':')!=std::string::npos||std::any_of(name.begin(),name.end(),[](unsigned char c){return c<32||std::string("<>\"|?*").find(c)!=std::string::npos;}))throw Error("檔案位置不正確。");for(auto p:rel){auto part=utf8(p);if(part==".."||part.empty()||part.back()=='.'||part.back()==' ')throw Error("檔案位置不正確。");auto stem=part.substr(0,part.find('.'));if(reservedDevice(stem))throw Error("檔案位置不正確。");}auto result=fs::absolute(root/rel).lexically_normal();noLinks(result);return result;}
+fs::path within(const fs::path&root,const std::string&name){auto rel=path8(name);if(name.empty()||rel.is_absolute()||rel.has_root_name()||name.find('\\')!=std::string::npos||name.find(':')!=std::string::npos||std::any_of(name.begin(),name.end(),[](unsigned char c){return c<32||std::string("<>\"|?*").find(c)!=std::string::npos;}))throw Error("檔案位置不正確。");for(auto p:rel){auto part=utf8(p);if(part==".."||part.empty()||part.back()=='.'||part.back()==' ')throw Error("檔案位置不正確。");auto stem=part.substr(0,part.find('.'));if(reservedDevice(stem))throw Error("檔案位置不正確。");}auto result=absoluteNormalizedPath(root/rel);noLinks(result);return result;}
 std::string readText(const fs::path&p,uint64_t max){VerifiedInput in(p);if(in.size()>max)throw Error("檔案無法讀取或過大。");std::string s;std::array<char,16384>b{};while(in){in.read(b.data(),b.size());auto n=static_cast<size_t>(in.gcount());if(n>max-s.size())throw Error("檔案過大。");s.append(b.data(),n);}if(in.bad())throw Error("檔案無法讀取。");return s;}
-static std::atomic<unsigned long>seq{0};static fs::path temporary(const fs::path&p){return p.parent_path()/path8(".atlas-"+sha(now()+std::to_string(seq++)+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,24));}
+static std::atomic<unsigned long>seq{0};static fs::path temporary(const fs::path&p){return parentDirectoryPath(p)/path8(".atlas-"+sha(now()+std::to_string(seq++)+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,24));}
 static void replace(const fs::path&from,const fs::path&to){
 #ifdef _WIN32
  if(!MoveFileExW(from.c_str(),to.c_str(),MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH))throw Error("保存未完成，請檢查可用空間。");
@@ -127,10 +172,10 @@ static void replace(const fs::path&from,const fs::path&to){
  fs::rename(from,to);
 #endif
 }
-void atomicText(const fs::path&p,const std::string&data){noLinks(p);privateDir(p.parent_path());auto temp=temporary(p);bool owned=false;try{{ExclusiveFile out(temp);owned=true;out.write(data);out.sync();}replace(temp,p);}catch(...){std::error_code ec;if(owned)fs::remove(temp,ec);throw;}}
+void atomicText(const fs::path&p,const std::string&data){noLinks(p);privateDir(parentDirectoryPath(p));auto temp=temporary(p);bool owned=false;try{{ExclusiveFile out(temp);owned=true;out.write(data);out.sync();}replace(temp,p);}catch(...){std::error_code ec;if(owned)fs::remove(temp,ec);throw;}}
 
 Digest digest(const fs::path&p,Tick tick){noLinks(p);if(!fs::is_regular_file(p))throw Error("附件不是一般檔案。");auto stamp=fs::last_write_time(p);VerifiedInput in(p);auto expected=in.size();if(!in)throw Error("附件無法讀取。");Sha256 hash;Digest r;uint32_t crc=0xffffffff;static const auto table=[](){std::array<uint32_t,256>a{};for(uint32_t i=0;i<256;i++){uint32_t c=i;for(int n=0;n<8;n++)c=(c&1)?0xedb88320^(c>>1):c>>1;a[i]=c;}return a;}();std::vector<char>b(1024*1024);while(in){if(tick)tick();in.read(b.data(),b.size());auto n=in.gcount();hash.update(b.data(),n);r.size+=n;for(std::streamsize i=0;i<n;i++)crc=table[(crc^static_cast<unsigned char>(b[i]))&255]^(crc>>8);}if(in.bad()||expected!=r.size||stamp!=fs::last_write_time(p))throw Error("檔案仍在變動，請稍後再試。");r.hash=hash.finish();r.crc=crc^0xffffffff;return r;}
-void copyVerified(const fs::path&from,const fs::path&to,int64_t expected,const std::string&hash,Tick tick){noLinks(from);noLinks(to);privateDir(to.parent_path());auto tmp=temporary(to);bool owned=false;try{VerifiedInput in(from);if(!in)throw Error("附件無法保存。");{ExclusiveFile out(tmp);owned=true;std::vector<char>b(1024*1024);while(in){if(tick)tick();in.read(b.data(),b.size());out.write(b.data(),in.gcount());}if(in.bad())throw Error("附件無法保存。");out.sync();}auto d=digest(tmp,tick);if((expected>=0&&d.size!=static_cast<uint64_t>(expected))||(!hash.empty()&&d.hash!=hash)||(d.size==0&&expected!=0&&hash.empty()))throw Error("附件內容不符，未列為完整副本。");replace(tmp,to);}catch(...){std::error_code ec;if(owned)fs::remove(tmp,ec);throw;}}
+void copyVerified(const fs::path&from,const fs::path&to,int64_t expected,const std::string&hash,Tick tick){noLinks(from);noLinks(to);privateDir(parentDirectoryPath(to));auto tmp=temporary(to);bool owned=false;try{VerifiedInput in(from);if(!in)throw Error("附件無法保存。");{ExclusiveFile out(tmp);owned=true;std::vector<char>b(1024*1024);while(in){if(tick)tick();in.read(b.data(),b.size());out.write(b.data(),in.gcount());}if(in.bad())throw Error("附件無法保存。");out.sync();}auto d=digest(tmp,tick);if((expected>=0&&d.size!=static_cast<uint64_t>(expected))||(!hash.empty()&&d.hash!=hash)||(d.size==0&&expected!=0&&hash.empty()))throw Error("附件內容不符，未列為完整副本。");replace(tmp,to);}catch(...){std::error_code ec;if(owned)fs::remove(tmp,ec);throw;}}
 
 std::string safeName(std::string s){for(auto&c:s)if(static_cast<unsigned char>(c)<32||std::string("<>:\"/\\|?*").find(c)!=std::string::npos)c='_';while(!s.empty()&&(s.back()=='.'||s.back()==' '))s.pop_back();if(s.size()>150){s.resize(150);while(!s.empty()&&(static_cast<unsigned char>(s.back())&0xc0)==0x80)s.pop_back();if(!s.empty()&&(static_cast<unsigned char>(s.back())&0x80))s.pop_back();}if(s.empty())s="attachment";if(reservedDevice(s.substr(0,s.find('.'))))s="_"+s;return s;}
 std::string base64(std::string_view s){static const char*c="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";std::string out;out.reserve((s.size()+2)/3*4);for(size_t i=0;i<s.size();i+=3){uint32_t v=uint32_t(static_cast<unsigned char>(s[i]))<<16;if(i+1<s.size())v|=uint32_t(static_cast<unsigned char>(s[i+1]))<<8;if(i+2<s.size())v|=static_cast<unsigned char>(s[i+2]);out+=c[(v>>18)&63];out+=c[(v>>12)&63];out+=i+1<s.size()?c[(v>>6)&63]:'=';out+=i+2<s.size()?c[v&63]:'=';}return out;}

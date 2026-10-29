@@ -25,6 +25,8 @@ struct Control{std::atomic<bool>stopped{false},paused{false};void check()const;v
 class Sha256{std::array<uint32_t,8>h;std::array<unsigned char,64>buffer{};uint64_t length=0;size_t used=0;void block(const unsigned char*);public:Sha256();void update(const void*,size_t);std::string finish();};
 std::string sha(std::string_view),key(const std::vector<std::string>&),now(),utf8(const fs::path&),safeName(std::string),base64(std::string_view),readText(const fs::path&,uint64_t max=64*1024*1024),safeJson(const J&);
 fs::path path8(const std::string&),privateDir(fs::path),within(const fs::path&,const std::string&);
+// Preserve Windows extended DOS/UNC roots across libc++ lexical normalization.
+fs::path absoluteNormalizedPath(const fs::path&),parentDirectoryPath(const fs::path&);
 // Uses filesystem identity, not case-folded path spelling. Missing target suffixes are allowed.
 std::optional<fs::path> relativeToDirectory(const fs::path& target,const fs::path& root);
 void noLinks(const fs::path&),atomicText(const fs::path&,const std::string&),copyVerified(const fs::path&,const fs::path&,int64_t expectedSize=-1,const std::string& expectedHash="",Tick={});

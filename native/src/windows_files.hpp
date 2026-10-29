@@ -47,7 +47,7 @@ inline void requireLocalPrivatePath(const fs::path& given){
  const auto raw=given.wstring();
  if(privatePathKind(raw)==PrivatePathKind::remote)checkSpelling(raw);
  if(raw.rfind(L"\\\\",0)==0||raw.rfind(L"\\??\\",0)==0)checkSpelling(raw);
- auto p=fs::absolute(given).lexically_normal();checkSpelling(p.wstring());noLinks(p);
+ auto p=absoluteNormalizedPath(given);checkSpelling(p.wstring());noLinks(p);
  // Resolve an existing ancestor so an alias cannot hide a remote target. Do not
  // create missing parents during validation and do not modify existing ACLs.
  auto ancestor=p;
@@ -58,7 +58,7 @@ inline void requireLocalPrivatePath(const fs::path& given){
    if(attr&FILE_ATTRIBUTE_DIRECTORY)break;
    if(ancestor!=p)throw Error("保存位置的上一層不是資料夾。");
   }else{const auto error=GetLastError();if(error!=ERROR_FILE_NOT_FOUND&&error!=ERROR_PATH_NOT_FOUND)throw Error("無法確認保存位置，請檢查本機資料夾的存取權限。");}
-  auto parent=ancestor.parent_path();if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置的本機資料夾。");ancestor=parent;
+  auto parent=parentDirectoryPath(ancestor);if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置的本機資料夾。");ancestor=parent;
  }
  HANDLE h=CreateFileW(ancestor.c_str(),0,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
  if(h==INVALID_HANDLE_VALUE)throw Error("無法確認保存位置的本機資料夾。");
@@ -87,8 +87,8 @@ inline std::optional<std::pair<fs::path,fs::path>> finalDirectoryParent(std::wst
 // Snapshot the resolved parent BEFORE opening/creating the target. This handles
 // subst drives and short directory aliases without re-resolving after the open.
 inline fs::path expectedFilePath(const fs::path&p){
- auto full=fs::absolute(p).lexically_normal();noLinks(full);
- auto parent=full.parent_path();
+ auto full=absoluteNormalizedPath(p);noLinks(full);
+ auto parent=parentDirectoryPath(full);
  HANDLE h=CreateFileW(parent.c_str(),0,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
  if(h==INVALID_HANDLE_VALUE)throw Error("無法驗證保存位置。");
  std::wstring resolved;

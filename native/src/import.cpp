@@ -80,15 +80,15 @@ void validateBlobPath(const J& blob){
 }
 } // namespace
 ImportResult importBackup(const fs::path& givenSource,const fs::path& givenDestination,Tick tick){
- checkTick(tick);auto source=fs::absolute(givenSource).lexically_normal(),dest=fs::absolute(givenDestination).lexically_normal();noLinks(source);noLinks(dest);
+ checkTick(tick);auto source=absoluteNormalizedPath(givenSource),dest=absoluteNormalizedPath(givenDestination);noLinks(source);noLinks(dest);
  if(!fs::is_directory(source)||!fs::is_regular_file(source/"archive.sqlite3"))throw Error("請選擇含 archive.sqlite3 的完整備份資料夾；單獨的離線網頁範例不是可匯入的收藏。");
- if(!fs::is_directory(dest.parent_path())||fs::exists(dest))throw Error("請在可寫入的位置使用尚未存在的新收藏資料夾。");
+ if(!fs::is_directory(parentDirectoryPath(dest))||fs::exists(dest))throw Error("請在可寫入的位置使用尚未存在的新收藏資料夾。");
  // Store rejects repository ancestors, but the private input snapshot is made
  // before Store exists. Apply the same no-source-tree rule before any writes.
- for(auto node=dest.parent_path();!node.empty();){checkTick(tick);if(fs::exists(node/".git"))throw Error("匯入請放在原始碼以外的私人資料夾，避免不小心公開。");auto parent=node.parent_path();if(parent==node)break;node=parent;}
+ for(auto node=parentDirectoryPath(dest);!node.empty();){checkTick(tick);if(fs::exists(node/".git"))throw Error("匯入請放在原始碼以外的私人資料夾，避免不小心公開。");auto parent=parentDirectoryPath(node);if(parent==node)break;node=parent;}
  if(relativeToDirectory(dest,source))throw Error("新的收藏不可放在原備份裡面。");
  rejectSidecars(source);auto sourceDb=source/"archive.sqlite3";{VerifiedInput in(sourceDb);if(in.size()>maxDatabase)throw Error("這份備份資料庫超過目前匯入的 1 GiB 上限。");}
- auto initial=digest(sourceDb,tick);if(initial.size>maxDatabase)throw Error("這份備份資料庫超過目前匯入的 1 GiB 上限。");auto stage=dest.parent_path()/path8(".ChatAtlas-Import-"+sha(now()+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,24));
+ auto initial=digest(sourceDb,tick);if(initial.size>maxDatabase)throw Error("這份備份資料庫超過目前匯入的 1 GiB 上限。");auto stage=parentDirectoryPath(dest)/path8(".ChatAtlas-Import-"+sha(now()+std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())).substr(0,24));
  std::string readerWarning;exclusiveDirectory(stage);auto input=stage/"source.sqlite3",payload=stage/"collection";
  try{
   checkTick(tick);if(relativeToDirectory(stage,source))throw Error("新的收藏不可放在原備份裡面。");copyVerified(sourceDb,input,static_cast<int64_t>(initial.size),initial.hash,tick);

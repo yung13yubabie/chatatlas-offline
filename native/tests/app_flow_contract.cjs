@@ -15,7 +15,11 @@ const connect=cpp.slice(cpp.indexOf('startTask([profile]'),cpp.indexOf('if(id==I
 assert(!connect.includes('app.source='),'worker never publishes source directly');
 assert(connect.indexOf('auto chats=source->chatsWithControl(*app.control)')<connect.indexOf('std::make_unique<ConnectionResult>'),'failed chat enumeration cannot publish a partial connection');
 assert(connect.includes('std::make_shared<WindowsSource>(profile,app.control.get())')&&connect.includes(';},true);'),'connection construction and enumeration expose stop control');
-assert.equal((cpp.match(/app\.report=probe\(app\.control\.get\(\)\);/g)||[]).length,2,'both probe entrypoints propagate task cancellation');
+assert.equal((cpp.match(/refreshProbeReport\(\);/g)||[]).length,2,'both probe entrypoints use the current-report boundary');
+const reportRefresh=cpp.slice(cpp.indexOf('void refreshProbeReport('),cpp.indexOf('void command('));
+assert(reportRefresh.indexOf('app.report=J();')<reportRefresh.indexOf('auto result=inspect(app.control.get());'),'retry invalidates previous report before inspection');
+assert(reportRefresh.includes('auto result=inspect(app.control.get());app.control->check();app.report=std::move(result);'),'cancelled result is not published as a completed report');
+assert(cpp.includes('if(id==ID_PROBE){app.report=J();startTask('),'UI invalidates old report before thread creation can fail');
 assert(cpp.includes('既有收藏或人工範例。";},true);')&&cpp.includes('完整採集仍待實機驗證。";},true);'),'both probe tasks enable stop');
 assert(connect.includes('app.control->check();'),'closing during enumeration discards the completed connection');
 assert(connect.includes('pending.get())))throw Error(')&&connect.includes('pending.release();'),'failed posting retains RAII ownership; successful posting transfers it');

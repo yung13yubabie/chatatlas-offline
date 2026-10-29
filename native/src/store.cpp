@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cctype>
 #include <ctime>
+#include <chrono>
+#include <utility>
 #include <iomanip>
 #include <regex>
 #include <sstream>
@@ -13,13 +15,17 @@ namespace atlas {
 static std::string str(const J&j,const std::string&name,const std::string&fallback=""){if(!j.contains(name)||j[name].is_null())return fallback;if(!j[name].is_string())throw Error("來源欄位格式不正確。");return j[name].get<std::string>();}
 static J nullstr(const std::string&s){return s.empty()?J(nullptr):J(s);}static bool isHex(const std::string&s){return s.size()==64&&std::all_of(s.begin(),s.end(),[](unsigned char c){return std::isxdigit(c);});}
 bool canonicalHash(const std::string&s){return s.size()==64&&std::all_of(s.begin(),s.end(),[](unsigned char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');});}
-std::string normalizeTime(const std::string&s){if(s.empty())return "";static const std::regex re(R"((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2}))");std::smatch m;if(s.size()>48||!std::regex_match(s,m,re))throw Error("來源時間缺少完整日期或時區。");int y=std::stoi(m[1]),mo=std::stoi(m[2]),d=std::stoi(m[3]),hh=std::stoi(m[4]),mm=std::stoi(m[5]),ss=std::stoi(m[6]);int days[]={31,28,31,30,31,30,31,31,30,31,30,31};if(y%4==0&&(y%100!=0||y%400==0))days[1]=29;if(y<1970||y>2999||mo<1||mo>12||d<1||d>days[mo-1]||hh>23||mm>59||ss>59)throw Error("來源時間格式不正確。");auto zone=m[8].str();int offset=0;if(zone!="Z"){int h=std::stoi(zone.substr(1,2)),n=std::stoi(zone.substr(4,2));if(h>14||n>59||(h==14&&n))throw Error("來源時區不正確。");offset=(h*60+n)*(zone[0]=='-'?-1:1);}int yr=y-(mo<=2),era=yr/400,yoe=yr-era*400,doy=(153*(mo+(mo>2?-3:9))+2)/5+d-1,doe=yoe*365+yoe/4-yoe/100+doy;int64_t epoch=(int64_t(era)*146097+doe-719468)*86400+hh*3600+mm*60+ss-offset*60;time_t tt=epoch;std::tm tm{};
+std::string normalizeTime(const std::string&s){if(s.empty())return "";static const std::regex re(R"((\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2}))");std::smatch m;if(s.size()>48||!std::regex_match(s,m,re))throw Error("來源時間缺少完整日期或時區。");int y=std::stoi(m[1]),mo=std::stoi(m[2]),d=std::stoi(m[3]),hh=std::stoi(m[4]),mm=std::stoi(m[5]),ss=std::stoi(m[6]);int days[]={31,28,31,30,31,30,31,31,30,31,30,31};if(y%4==0&&(y%100!=0||y%400==0))days[1]=29;if(y<1970||y>2999||mo<1||mo>12||d<1||d>days[mo-1]||hh>23||mm>59||ss>59)throw Error("來源時間格式不正確。");auto zone=m[8].str();int offset=0;if(zone!="Z"){int h=std::stoi(zone.substr(1,2)),n=std::stoi(zone.substr(4,2));if(h>14||n>59||(h==14&&n))throw Error("來源時區不正確。");offset=(h*60+n)*(zone[0]=='-'?-1:1);}int yr=y-(mo<=2),era=yr/400,yoe=yr-era*400,doy=(153*(mo+(mo>2?-3:9))+2)/5+d-1,doe=yoe*365+yoe/4-yoe/100+doy;int64_t epoch=(int64_t(era)*146097+doe-719468)*86400+hh*3600+mm*60+ss-offset*60;
+ // Keep both the input year and its UTC result within the existing supported range.
+ constexpr auto utcEnd=std::chrono::duration_cast<std::chrono::seconds>(std::chrono::sys_days{std::chrono::year{3000}/std::chrono::January/1}.time_since_epoch()).count();
+ if(epoch<0||epoch>=utcEnd||!std::in_range<time_t>(epoch))throw Error("來源時間轉為 UTC 後超出支援範圍。");
+ time_t tt=static_cast<time_t>(epoch);std::tm tm{};
 #ifdef _WIN32
- gmtime_s(&tm,&tt);
+ if(gmtime_s(&tm,&tt)!=0)throw Error("來源時間無法轉換。");
 #else
- gmtime_r(&tt,&tm);
+ if(!gmtime_r(&tt,&tm))throw Error("來源時間無法轉換。");
 #endif
- char out[32];std::strftime(out,sizeof out,"%Y-%m-%dT%H:%M:%S",&tm);std::string fraction=m[7].str()+"000";return std::string(out)+"."+fraction.substr(0,3)+"+00:00";}
+ char out[32]{};if(std::strftime(out,sizeof out,"%Y-%m-%dT%H:%M:%S",&tm)!=19)throw Error("來源時間無法格式化。");std::string fraction=m[7].str()+"000";return std::string(out)+"."+fraction.substr(0,3)+"+00:00";}
 void validateChat(const J&c){auto kind=str(c,"kind","group");if(str(c,"source_id").empty()||str(c,"title").empty()||!std::set<std::string>{"group","direct","room","community","subchat"}.count(kind))throw Error("聊天室缺少可核對的名稱或識別。");if(kind=="subchat"&&str(c,"parent_source_id").empty())throw Error("子聊天室缺少所屬社群。");}
 void validateItem(J&i){if(str(i,"source_id").empty()||!allKinds.count(str(i,"kind")))throw Error("來源內容缺少有效識別。");for(auto name:{"text","title","sender_name"}){auto value=str(i,name);if(value.size()>4*1024*1024)throw Error("單一來源內容過大。");i[name]=value;}i["state"]=str(i,"state","active");if(!std::set<std::string>{"active","recalled","deleted","unknown"}.count(str(i,"state")))throw Error("來源狀態不正確。");i["sent_at"]=nullstr(normalizeTime(str(i,"sent_at")));for(auto name:{"sender_id","parent_source_id","reply_source_id"})i[name]=nullstr(str(i,name));if(!i.contains("ordinal"))i["ordinal"]=0;if(!databaseSignedInteger(i["ordinal"]))throw Error("來源順序格式不正確或超過可保存範圍。");if(!i.contains("metadata"))i["metadata"]=J::object();if(!i["metadata"].is_object())throw Error("來源內容格式不正確。");}
 void validateAttachment(J&a){if(str(a,"source_id").empty()||str(a,"item_source_id").empty())throw Error("附件缺少所屬內容。");a["name"]=str(a,"name","attachment");a["kind"]=str(a,"kind","file");a["variant"]=str(a,"variant","full");a["version"]=str(a,"version");if(!std::set<std::string>{"image","video","audio","file","sticker"}.count(str(a,"kind"))||!std::set<std::string>{"full","thumbnail"}.count(str(a,"variant")))throw Error("附件類型不正確。");if(a.contains("expected_size")&&!a["expected_size"].is_null()&&(!a["expected_size"].is_number_integer()||a["expected_size"].get<int64_t>()<0))throw Error("附件大小格式不正確。");if(!a.contains("expected_size"))a["expected_size"]=nullptr;auto h=str(a,"expected_sha256");std::transform(h.begin(),h.end(),h.begin(),[](unsigned char c){return std::tolower(c);});if(!h.empty()&&!isHex(h))throw Error("附件校驗資訊不正確。");a["expected_sha256"]=nullstr(h);if(str(a,"version").empty()&&!h.empty())a["version"]="sha256:"+h;}
@@ -43,14 +49,14 @@ int archiveSchemaVersion(const fs::path&p)try{
  auto value=version[0].begin().value();if(value!=1&&value!=2)throw Error("這份收藏格式尚不支援，未修改原檔。");return value.get<int>();
 }catch(const fs::filesystem_error&){throw Error("無法確認收藏資料庫的位置或存取權限，未繼續開啟收藏。");}
 static fs::path checkedDb(const fs::path&p,bool allowUpgrade){if(archiveSchemaVersion(p)==1&&!allowUpgrade)throw Error("這份舊版收藏需要先確認升級；升級前會保留資料庫副本，舊版程式將無法管理新版收藏。");return within(p,"archive.sqlite3");}
-static fs::path storageRoot(const fs::path&given,Tick tick)try{if(tick)tick();auto p=fs::absolute(given).lexically_normal();for(auto node=p;!node.empty();){if(tick)tick();if(fs::exists(node/".git"))throw Error("收藏請放在原始碼以外的私人資料夾，避免不小心公開。");auto parent=node.parent_path();if(parent==node)break;node=parent;}auto result=privateDir(p);
+static fs::path storageRoot(const fs::path&given,Tick tick)try{if(tick)tick();auto p=absoluteNormalizedPath(given);for(auto node=p;!node.empty();){if(tick)tick();if(fs::exists(node/".git"))throw Error("收藏請放在原始碼以外的私人資料夾，避免不小心公開。");auto parent=parentDirectoryPath(node);if(parent==node)break;node=parent;}auto result=privateDir(p);
 #ifdef _WIN32
 requirePrivateDirectory(result);
 // Existing archives may contain explicit child ACLs not inherited from root.
 for(const auto&entry:fs::recursive_directory_iterator(result)){if(tick)tick();noLinks(entry.path());requirePrivateDirectory(entry.path());}
 #endif
 return result;}catch(const fs::filesystem_error&){throw Error("無法完整檢查收藏資料夾，請確認所有子資料夾均可存取；未略過無法檢查的項目。");}
-Store::Store(const fs::path&p,Tick tick,bool allowUpgrade):lock(storageRoot(p,tick)),root(fs::absolute(p).lexically_normal()),db(checkedDb(root,allowUpgrade)){
+Store::Store(const fs::path&p,Tick tick,bool allowUpgrade):lock(storageRoot(p,tick)),root(absoluteNormalizedPath(p)),db(checkedDb(root,allowUpgrade)){
  const auto version=db.rows("PRAGMA user_version")[0].begin().value().get<int>();
  if(version==1){
   // A fresh private file is owned exclusively before SQLite writes the snapshot.
