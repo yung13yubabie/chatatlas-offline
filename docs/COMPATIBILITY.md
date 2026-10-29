@@ -52,3 +52,9 @@ LINE 自訂控制項若不暴露所需資訊，這條來源方式可能不足；
 - 發布頁紀錄已實際執行的測試；未跑過的 OS／瀏覽器／儲存媒體組合標示未驗證。
 
 官方能力說明：[SQLite trusted_schema](https://www.sqlite.org/pragma.html#pragma_trusted_schema)、[File System Access](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)、[Secure Contexts](https://www.w3.org/TR/secure-contexts/)。
+
+## alpha.7 私人儲存位置
+
+建立帶私人 ACL 的應用資料、收藏、匯入目的地與 ZIP 檔案時，只接受能驗證的本機位置；UNC／延伸 UNC 及映射網路磁碟會在建立前拒絕。這是避免本機 Windows 帳號識別與 SMB／NAS 登入識別不同而留下無法管理的資料，不是已完成所有 NAS 的實機相容測試。既有共用資料不會被自動接管、放寬權限或刪除。外部備份讀取仍保留原有安全檢查。
+
+OneDrive 等同步位置與其他重解析點繼續保守拒絕；請把完整程式移到一般本機目錄。訊息提到 OneDrive 只是常見例子，不表示程式已辨識特定雲端服務。

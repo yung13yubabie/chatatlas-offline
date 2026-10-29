@@ -7,6 +7,7 @@
 #include <sddl.h>
 #include <aclapi.h>
 #include <algorithm>
+#include "private_path.hpp"
 namespace atlas {
 // An explicit token SID, not the OWNER RIGHTS placeholder, identifies this user.
 class PrivateSecurity {
@@ -27,6 +28,41 @@ class PrivateSecurity {
 inline std::wstring finalHandlePath(HANDLE h){
  DWORD n=GetFinalPathNameByHandleW(h,nullptr,0,FILE_NAME_NORMALIZED);if(!n)throw Error("無法驗證保存位置。");
  std::wstring actual(n,L'\0');DWORD used=GetFinalPathNameByHandleW(h,actual.data(),n,FILE_NAME_NORMALIZED);if(!used||used>=n)throw Error("無法驗證保存位置。");actual.resize(used);return actual;
+}
+// A local process SID is not necessarily the account authenticated by an SMB
+// server. Never create a protected, local-SID ACL on a remote destination.
+// This is a bounded preflight, not a replacement for the existing handle checks.
+inline void requireLocalPrivatePath(const fs::path& given){
+ auto checkSpelling=[](const std::wstring& value){
+  const auto kind=privatePathKind(value);
+  if(kind==PrivatePathKind::remote)throw Error("請先將完整程式資料夾或保存位置改到一般本機磁碟；不要在網路共用資料夾建立私人資料。");
+  if(kind!=PrivatePathKind::drive)throw Error("無法確認這是一般本機磁碟位置，請改用本機磁碟的完整路徑。");
+  auto drive=value;for(auto& c:drive)if(c==L'/')c=L'\\';if(drive.rfind(L"\\\\?\\",0)==0)drive.erase(0,4);drive=drive.substr(0,2)+L"\\";
+  const auto type=GetDriveTypeW(drive.c_str());
+  if(type==DRIVE_REMOTE)throw Error("請使用一般本機磁碟保存，不要在網路磁碟機建立私人資料。");
+  if(!localPrivateDriveType(type))throw Error("無法確認保存磁碟類型，請選擇可存取的一般本機磁碟。");
+ };
+ // fs::absolute resolves a relative path against the current directory; reject
+ // explicit network/device spellings first, then check the resolved path too.
+ const auto raw=given.wstring();
+ if(privatePathKind(raw)==PrivatePathKind::remote)checkSpelling(raw);
+ if(raw.rfind(L"\\\\",0)==0||raw.rfind(L"\\??\\",0)==0)checkSpelling(raw);
+ auto p=fs::absolute(given).lexically_normal();checkSpelling(p.wstring());noLinks(p);
+ // Resolve an existing ancestor so an alias cannot hide a remote target. Do not
+ // create missing parents during validation and do not modify existing ACLs.
+ auto ancestor=p;
+ for(;;){
+  const DWORD attr=GetFileAttributesW(ancestor.c_str());
+  if(attr!=INVALID_FILE_ATTRIBUTES){
+   if(attr&FILE_ATTRIBUTE_REPARSE_POINT)throw Error("保存位置包含雲端同步標記或連結，請改用一般本機私人資料夾。");
+   if(attr&FILE_ATTRIBUTE_DIRECTORY)break;
+   if(ancestor!=p)throw Error("保存位置的上一層不是資料夾。");
+  }else{const auto error=GetLastError();if(error!=ERROR_FILE_NOT_FOUND&&error!=ERROR_PATH_NOT_FOUND)throw Error("無法確認保存位置，請檢查本機資料夾的存取權限。");}
+  auto parent=ancestor.parent_path();if(parent.empty()||parent==ancestor)throw Error("無法確認保存位置的本機資料夾。");ancestor=parent;
+ }
+ HANDLE h=CreateFileW(ancestor.c_str(),0,FILE_SHARE_READ|FILE_SHARE_WRITE,nullptr,OPEN_EXISTING,FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+ if(h==INVALID_HANDLE_VALUE)throw Error("無法確認保存位置的本機資料夾。");
+ try{BY_HANDLE_FILE_INFORMATION info{};if(!GetFileInformationByHandle(h,&info)||!(info.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)||(info.dwFileAttributes&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("保存位置包含連結或無法驗證。");checkSpelling(finalHandlePath(h));}catch(...){CloseHandle(h);throw;}CloseHandle(h);
 }
 // GetFinalPathNameByHandle returns extended DOS/UNC paths. libc++ treats
 // the "?" prefix as a network root, so parent_path() alone can walk above a

@@ -166,6 +166,15 @@ function Find-Nodes($root,$selector,$max=6000) {
  return ,$found.ToArray()
 }
 
+# A running process can have no main window (for example, system tray only).
+# Keep selection separate from publisher verification so both failure modes are precise.
+function Get-LineMainProcess {
+ $processes=@(Get-Process -Name LINE -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+ if ($processes.Count -eq 0) { throw 'line_window_missing' }
+ if ($processes.Count -gt 1) { throw 'line_window_ambiguous' }
+ return $processes[0]
+}
+
 while ($null -ne ($line=[Console]::ReadLine())) {
  try {
   if ($line.Length -gt 131072) { throw 'request_limit' }
@@ -173,9 +182,7 @@ while ($null -ne ($line=[Console]::ReadLine())) {
   $result=$null
   switch ($r.action) {
    'connect' {
-    $processes=@(Get-Process -Name LINE -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
-    if ($processes.Count -ne 1) { throw 'line_window_ambiguous' }
-    $p=$processes[0]
+    $p=Get-LineMainProcess
     $signature=Get-AuthenticodeSignature -FilePath $p.Path
     if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '(?:^|,\s*)O="?(?:LINE Corporation|LY Corporation|NAVER Corporation)"?(?:,|$)') { throw 'publisher_unverified' }
     $script:ProcessId=$p.Id
@@ -306,7 +313,7 @@ while ($null -ne ($line=[Console]::ReadLine())) {
   @{ok=$true;result=$result} | ConvertTo-Json -Depth 20 -Compress | ForEach-Object { [Console]::WriteLine($_) }
  } catch {
   # Never return exception text, which can contain private paths or UI contents.
-  $allowed=@('not_connected','wrong_process','wrong_window','focus_changed','stale_node','tree_limit','request_limit','line_window_ambiguous','publisher_unverified','selection_unsupported','scroll_unsupported','navigation_not_allowed','download_action_not_allowed','invalid_destination','linked_destination','save_dialog_missing','save_dialog_unsupported','save_button_unsupported','save_conflict','save_conflict_cleanup_required','save_incomplete','unknown_action')
+  $allowed=@('not_connected','wrong_process','wrong_window','focus_changed','stale_node','tree_limit','request_limit','line_window_missing','line_window_ambiguous','publisher_unverified','selection_unsupported','scroll_unsupported','navigation_not_allowed','download_action_not_allowed','invalid_destination','linked_destination','save_dialog_missing','save_dialog_unsupported','save_button_unsupported','save_conflict','save_conflict_cleanup_required','save_incomplete','unknown_action')
   $code=if($_.Exception.Message -in $allowed){$_.Exception.Message}else{'uia_operation_failed'}
   @{ok=$false;code=$code} | ConvertTo-Json -Compress | ForEach-Object { [Console]::WriteLine($_) }
  }

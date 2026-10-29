@@ -63,7 +63,11 @@ inline bool discardCreatedFile(HANDLE h) noexcept {
  SetLastError(error);errno=savedErrno;return removed;
 }
 #endif
-class ExclusiveFile{FILE*file=nullptr;public:explicit ExclusiveFile(const fs::path&p){noLinks(p);int fd=-1;
+class ExclusiveFile{FILE*file=nullptr;public:explicit ExclusiveFile(const fs::path&p){
+#ifdef _WIN32
+ requireLocalPrivatePath(p);
+#endif
+ noLinks(p);int fd=-1;
 #ifdef _WIN32
  const auto expected=expectedFilePath(p); PrivateSecurity security; HANDLE h=CreateFileW(p.c_str(),GENERIC_WRITE|DELETE,0,&security.attributes,CREATE_NEW,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);if(h!=INVALID_HANDLE_VALUE){try{verifyFileHandle(h,expected);}catch(...){discardCreatedFile(h);CloseHandle(h);throw;}fd=_open_osfhandle(reinterpret_cast<intptr_t>(h),_O_BINARY|_O_WRONLY);if(fd<0){discardCreatedFile(h);CloseHandle(h);}}
 #else

@@ -2,18 +2,18 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.6｜Windows x64 可攜預覽版**
+**0.3.1-alpha.7｜Windows x64 可攜預覽版**
 
 > 本版套件僅由通過驗收的 CI 產物發布；是否已可下載，請以本版 Release 頁的實際狀態為準。
 
-[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.6/ChatAtlas-0.3.1-alpha.6-Windows-x64-candidate.zip) · [alpha.6 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.6)
+[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.7/ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip) · [alpha.7 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.7)
 
 > **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
 > 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
 
 ## 下載後怎麼開
 
-1. 發布完成後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的私人 NTFS 資料夾。
+1. 發布完成後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
 2. 雙擊 `ChatAtlas.exe`。不需安裝 Python、Node.js，也不要求另裝 .NET。
 3. 想先試介面，點「查看人工範例」；或直接用瀏覽器開啟包內的 `人工範例/index.html`。
 4. 請保留 HTML 旁邊的資料夾，圖片、內容與另存檔案功能會用到它們。
@@ -41,11 +41,13 @@
 - **不偷偷換位置：** EXE 所在位置無法安全寫入時，程式會提示並停止，不回退到 AppData 或暫存資料夾。
 - **不動舊版資料：** 不會自動搬移或刪除舊 AppData。升級時請保留舊資料；複製與清理應由你確認後進行。
 
-請避免把程式放在唯讀、受保護或多人共用且權限寬鬆的位置。保存位置必須能驗證 Windows 私人 ACL；**不是所有隨身碟格式都適用，FAT32／exFAT 不能當成 NTFS 權限保護的替代品。**
+請避免把程式放在唯讀、受保護或多人共用且權限寬鬆的位置。網路共用、映射網路磁碟及雲端同步／連結位置不支援建立私人資料；請先將整包複製到一般本機資料夾。保存位置必須能驗證 Windows 私人 ACL；**不是所有隨身碟格式都適用，FAT32／exFAT 不能當成 NTFS 權限保護的替代品。**
 
 「可攜」指應用程式自己的資料位置，不代表電腦完全不留痕跡。Windows、瀏覽器、防毒及底層元件的暫存或診斷可能留下各自的紀錄，聊藏不會停用或清除它們。
 
 ## 畫面預覽
+
+本輪 alpha.7 實際截圖待精確來源 CI 產生；以下暫留已標示版本的 alpha.6 歷史畫面，不作為 alpha.7 驗收。
 
 以下五張是 alpha.6 程式來源 `81c9dbc4` 的實際執行畫面。兩張原生圖來自 Native CI 的 `exact-release-smoke` 工作，以 `ATLAS_QA` 啟用測試流程，執行實際封裝的 EXE；三張離線 HTML 圖來自同一來源的瀏覽器測試。全部使用人工資料，不是設計稿或真實 LINE 採集證明。
 
@@ -87,7 +89,15 @@
 
 </details>
 
-## alpha.6 更新範圍
+## alpha.7 更新範圍
+
+- **本機私人保存位置：** 建立私人目錄、鎖檔與檔案前拒絕網路共用與網路磁碟，包括啟動、收藏、匯入目的地及 ZIP 匯出。仍保留原有私人 ACL／連結防護，不改既有共用資料夾的權限，也不自動修復或刪除舊版留下的目錄。
+- **視窗與資料管理：** 整批移動控制項後統一重繪；新增「開啟 ChatAtlasData」，只開啟資料目錄，不代為刪除內容。採集紀錄改以 UTC+8 顯示，資料庫仍保存原始 UTC。
+- **連線提示：** 分開「找不到 LINE 主視窗」與「找到多個視窗」；未載入版面設定時只做辨識，載入設定亦不等於已通過真實採集驗證。
+- **環境指引：** 雲端同步／重解析點仍保守拒絕，指引改放一般本機目錄，不把所有重解析點都稱為 OneDrive。
+- 詳見 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。
+
+### 保留的 alpha.6 修正
 
 - **附件儲存路徑一致性：** 登記、沿用、完整性檢查與下載分塊共用既有匯入的路徑規則；ZIP 寫入前另核對資產名稱與實際內容雜湊；不合規的中繼資料明確拒絕，不自動搬動、刪除或改名舊檔。
 - **先核對再修正：** alpha.5 的匯入白名單與重複匯入自動編號已存在，本版沒有重寫這兩條正常動線。詳見 [alpha.6 核對紀錄](docs/ALPHA6_REVIEW.md)。
@@ -108,9 +118,7 @@
 
 ## 驗證狀態
 
-程式來源 `81c9dbc41d085296a93ca2c3c78ef0768a447052` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713161892) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713448403) 各三個工作均通過。Windows 實際通過附件路徑整合 120 項、完整備份匯入 155 項、ZIP 57 項及原有核心、歷史與可攜 GUI 測試；實際封裝 EXE 載入三筆人工採集紀錄並產生上方原生畫面。離線瀏覽器通過正常操作與 CSP 外部資源阻擋測試。這不是全平台、全新 Windows 安裝環境或真實 LINE 採集驗收。
-
-文件與五張截圖加入後，仍對最終來源重新執行 CI、建置及封裝；最終發布只採用最終來源的原始 CI 產物，不直接發布較早候選包。
+alpha.7 的來源、Windows 執行包與新版實際畫面仍須對精確提交執行完整 CI。下方 alpha.6 圖片連結只屬歷史證據，不沿用為本版通過紀錄。完成後只發布最終來源 CI 的原始四個產物，不重新打包。
 
 本版應核對的項目包括：
 
@@ -119,17 +127,17 @@
 - 人工 SQLite 與下載器回歸，以及離線 UI 的正常操作與 CSP 外部資源拒絕。
 - 發布四個檔案的原始 CI 位元組、`SHA256SUMS.txt` 與 GitHub 建置來源證明。
 
-最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.6) 的精確來源與驗證紀錄為準；不沿用任何前版的 CI 或雜湊。
+最終通過、失敗與跳過項目，以本版 [Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.7) 的精確來源與驗證紀錄為準；不沿用任何前版的 CI 或雜湊。
 
 <details>
 <summary>下載後如何核對來源</summary>
 
-請使用 **alpha.6 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
+請使用 **alpha.7 Release 自己的 `SHA256SUMS.txt`**，核對你下載的檔案；此處不複製會因建置而不同的 ZIP 雜湊，以 Release 隨附檔案為準。
 
 發布完成且有可驗證的來源證明後，使用 GitHub CLI 的開發者可執行：
 
 ```sh
-gh attestation verify ChatAtlas-0.3.1-alpha.6-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
+gh attestation verify ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip --repo yung13yubabie/chatatlas-offline
 ```
 
 建置來源證明需核對儲存庫、workflow、來源 commit 及檔案雜湊。它不是 Authenticode 簽章、防毒認證或安全認證。

@@ -15,7 +15,7 @@ if(binary.subarray(0,2).toString()!=='MZ'||provenance.version!==version||sha(bin
 for(const item of provenance.sourceInputs)if(!source.has(item.path)||sha(source.get(item.path))!==item.sha256)throw Error('Build differs from staged source: '+item.path);
 const files=new Map([['ChatAtlas/ChatAtlas.exe',binary],['ChatAtlas/BUILD_PROVENANCE.json',provenanceBytes]]);
 for(const[name,bytes]of source)if(['LICENSE','SECURITY.md','THIRD_PARTY_NOTICES.md','VERSION'].includes(name)||name.startsWith('licenses/')||['native/vendor/LICENSE-nlohmann.txt','native/vendor/LICENSE-hedley.txt'].includes(name))files.set('ChatAtlas/'+name.replace('native/vendor/','licenses/'),bytes);
-files.set('ChatAtlas/使用說明.txt',Buffer.from('請先解壓整包，再雙擊 ChatAtlas.exe。\nWindows x64 原生程式，不需 Python、Node.js 或另裝 .NET。\n設定、預設收藏與範例保存在 EXE 旁的 ChatAtlasData。請把整包放在可寫入的位置；不會偷偷改存 AppData 或暫存資料夾。\n舊 AppData 資料不會自動搬移或刪除。手動另選收藏位置時，以選定位置為準。\n人工範例：開啟 人工範例/index.html，保留旁邊的資料夾。\n這是實驗版；真實 LINE 自動採集、Windows GUI 與多 GB 檔案尚未完成實機驗收。\nEXE 未簽章，請勿停用防毒或系統保護。沒有宣稱通過完整獨立安全審查。\n'));
+files.set('ChatAtlas/使用說明.txt',Buffer.from('請先解壓整包，再雙擊 ChatAtlas.exe。\nWindows x64 原生程式，不需 Python、Node.js 或另裝 .NET。\n設定、預設收藏與範例保存在 EXE 旁的 ChatAtlasData。請把整包放在可寫入的一般本機私人資料夾；不要從網路共用、網路磁碟或雲端同步位置執行。不會偷偷改存 AppData 或暫存資料夾。\n舊 AppData 資料不會自動搬移或刪除。手動另選收藏位置時，以選定位置為準。\n人工範例：開啟 人工範例/index.html，保留旁邊的資料夾。\n這是實驗版；真實 LINE 自動採集、Windows GUI 與多 GB 檔案尚未完成實機驗收。\nEXE 未簽章，請勿停用防毒或系統保護。沒有宣稱通過完整獨立安全審查。\n'));
 const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-package-synthetic-'));
 try{
  const example=path.join(temporary,'archive'),cli=path.join(ROOT,'native/build/atlas-cli'+(process.platform==='win32'?'.exe':''));

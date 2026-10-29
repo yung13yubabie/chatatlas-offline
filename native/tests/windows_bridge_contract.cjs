@@ -9,6 +9,26 @@ assert(cpp.includes('auto payload=base64(worker_script)+"\\n"'),'worker must tra
 assert(cpp.includes('FromBase64String($worker)'));
 assert(cpp.includes('p.contains("process_name")'),'reject obsolete process override');
 assert(ps.includes('Get-Process -Name LINE'));
+// Empty/tray-only and multiple-main-window cases must remain distinct across
+// production selection, the worker's safe error allowlist and native display.
+const mainSelection=ps.slice(ps.indexOf('function Get-LineMainProcess {'),ps.indexOf('while ($null -ne ($line=[Console]::ReadLine()))'));
+assert(mainSelection.includes('Where-Object { $_.MainWindowHandle -ne 0 }'));
+assert(mainSelection.includes("if ($processes.Count -eq 0) { throw 'line_window_missing' }"));
+assert(mainSelection.includes("if ($processes.Count -gt 1) { throw 'line_window_ambiguous' }"));
+assert(!mainSelection.includes('$processes.Count -ne 1'));
+assert(mainSelection.indexOf("throw 'line_window_missing'")<mainSelection.indexOf('return $processes[0]'));
+assert(mainSelection.indexOf("throw 'line_window_ambiguous'")<mainSelection.indexOf('return $processes[0]'));
+const connect=ps.slice(ps.indexOf("   'connect' {"),ps.indexOf("   'activate' {"));
+assert(connect.includes('$p=Get-LineMainProcess'));
+assert(connect.indexOf('$p=Get-LineMainProcess')<connect.indexOf('Get-AuthenticodeSignature'));
+const safeCodes=ps.match(/\$allowed=@\(([^\r\n]+)\)/)[1];
+for(const code of ['line_window_missing','line_window_ambiguous']) {
+ assert(safeCodes.includes("'"+code+"'"),'window diagnostic must survive the safe allowlist');
+ assert(cpp.includes('if(code=="'+code+'")throw CapabilityError('),'native display must map the same code');
+}
+assert(ps.includes("$code=if($_.Exception.Message -in $allowed){$_.Exception.Message}else{'uia_operation_failed'}"));
+const embedded=fs.readFileSync(path.join(root,'native/src/bundle.cpp'),'utf8').split('const char*worker_script=R"ATLAS(')[1].split(')ATLAS";')[0];
+assert.equal(embedded,ps.replace(/^\uFEFF/,''),'embedded worker must match the edited script exactly');
 assert(ps.includes("$signature.Status -ne 'Valid'"));
 assert(ps.includes('$p.StartTime.ToUniversalTime().Ticks -ne $script:ProcessStarted'));
 assert(ps.includes('$p.Path -ine $script:ProcessPath'));

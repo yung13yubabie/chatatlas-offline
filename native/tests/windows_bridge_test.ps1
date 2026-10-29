@@ -4,7 +4,7 @@ $tokens=$null; $errors=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $source),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw ($errors | Out-String) }
 # Load only pure guards; never execute the worker or contact a real LINE process.
-foreach ($name in @('Assert-Window','Assert-SaveDialog','Assert-SaveDestination','Assert-OwnedSaveConfirmation','Close-TrackedSaveAfterConfirmation','Wait-SaveCompletion')) {
+foreach ($name in @('Get-LineMainProcess','Assert-Window','Assert-SaveDialog','Assert-SaveDestination','Assert-OwnedSaveConfirmation','Close-TrackedSaveAfterConfirmation','Wait-SaveCompletion')) {
  $fn=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name},$true)
  if (!$fn) { throw "Missing guard $name" }
  Invoke-Expression $fn.Extent.Text
@@ -14,12 +14,40 @@ $script:ProcessId=42; $script:ProcessPath='C:\Synthetic\LINE.exe'
 $script:ProcessStarted=123
 $script:Main=[pscustomobject]@{Current=[pscustomobject]@{ProcessId=42}}
 $script:FakeProcess=[pscustomobject]@{ProcessName='LINE'; StartTime=[datetime]::new(123,[DateTimeKind]::Utc); Path=$script:ProcessPath}
-function Get-Process { param($Id) return $script:FakeProcess }
+function Get-Process {
+ param($Id,$Name,$ErrorAction)
+ if ($Name) {
+  if ($Name -cne 'LINE' -or $ErrorAction -cne 'SilentlyContinue') { throw 'unexpected_process_query' }
+  return $script:FakeProcesses
+ }
+ return $script:FakeProcess
+}
 $script:SaveDialogNames=@('Save As')
 function New-Dialog { return [pscustomobject]@{Current=[pscustomobject]@{ProcessId=42; ClassName='#32770'; Name='Save As'; IsEnabled=$true; IsOffscreen=$false; NativeWindowHandle=123}} }
 function Expect-Error($action,$expected) {
  try { & $action; throw 'test_did_not_fail' } catch { if ($_.Exception.Message -cne $expected) { throw } }
 }
+# Exercise the exact production process selection with synthetic objects only.
+# An absent process and a tray-only process are missing windows, not ambiguity.
+$script:FakeProcesses=@()
+Expect-Error { Get-LineMainProcess } 'line_window_missing'
+$tray=[pscustomobject]@{MainWindowHandle=[IntPtr]::Zero; Id=101}
+$main=[pscustomobject]@{MainWindowHandle=[IntPtr]123; Id=102}
+$second=[pscustomobject]@{MainWindowHandle=[IntPtr]124; Id=103}
+$script:FakeProcesses=@($tray)
+Expect-Error { Get-LineMainProcess } 'line_window_missing'
+$script:FakeProcesses=@($main)
+if ((Get-LineMainProcess).Id -ne 102) { throw 'single_main_window_not_selected' }
+$script:FakeProcesses=@($tray,$main)
+if ((Get-LineMainProcess).Id -ne 102) { throw 'tray_process_counted_as_main_window' }
+$script:FakeProcesses=@($main,$second)
+Expect-Error { Get-LineMainProcess } 'line_window_ambiguous'
+$script:FakeProcesses=@($tray,$main,$second)
+Expect-Error { Get-LineMainProcess } 'line_window_ambiguous'
+# Re-evaluate every connect request; do not retain a disappeared prior candidate.
+$script:FakeProcesses=@()
+Expect-Error { Get-LineMainProcess } 'line_window_missing'
+Write-Output 'Seven synthetic LINE main-window selection cases passed.'
 Assert-SaveDialog (New-Dialog)
 foreach ($change in @(@('Name','Open'),@('ClassName','NotADialog'),@('ProcessId',99),@('IsEnabled',$false),@('IsOffscreen',$true),@('NativeWindowHandle',0))) {
  $dialog=New-Dialog; $dialog.Current.($change[0])=$change[1]

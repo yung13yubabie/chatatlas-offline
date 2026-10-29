@@ -16,7 +16,8 @@ build/database-contract-test: build/database.o build/platform.o tests/database_c
 	$(CXX) $(CXXFLAGS) tests/database_contract_test.cpp build/database.o build/platform.o -ldl -o $@
 build/path-identity-test: build/platform.o tests/path_identity_test.cpp
 	$(CXX) $(CXXFLAGS) tests/path_identity_test.cpp build/platform.o -o $@
-test: build/blob-path-contract-test build/blob-path-store-test build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+test: build/private-path-contract-test build/blob-path-contract-test build/blob-path-store-test build/item-value-contract-test build/store-cancel-test build/request-control-test build/bridge-timing-test build/core-test build/zip-bounds-test build/database-contract-test build/path-identity-test build/capture-history-test build/import-test
+	./build/private-path-contract-test
 	./build/blob-path-contract-test
 	$(MAKE) test-blob-path-store
 	./build/request-control-test
@@ -78,3 +79,8 @@ build/blob-path-store-test: $(OBJ) tests/blob_path_store_test.cpp
 .PHONY: test-blob-path-store
 test-blob-path-store: build/blob-path-store-test
 	@d=$$(mktemp -d) || exit 1; ./build/blob-path-store-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+# Pure local-private-path grammar contract, without contacting a network.
+build/private-path-contract-test: tests/private_path_contract_test.cpp src/private_path.hpp
+	@mkdir -p build
+	$(CXX) $(CXXFLAGS) tests/private_path_contract_test.cpp -o $@

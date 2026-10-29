@@ -155,6 +155,27 @@ public static class AtlasSmokeWindow {
    } finally { $graphics.Dispose(); $bitmap.Dispose() }
    }
    Save-OwnedWindowCapture 'atlas-native-windows.png'
+   # Exercise genuine scrolling on the owned application HWND. These captures
+   # show actual controls after navigation; PrintWindow is not a screen-compositor
+   # pixel oracle and does not replace interactive Windows painting validation.
+   for($cycle=0;$cycle -lt 4;$cycle++) {
+    [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,7,0) # WM_VSCROLL, SB_BOTTOM
+    [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,6,0) # SB_TOP
+   }
+   [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,7,0)
+   Save-OwnedWindowCapture 'atlas-native-scroll-bottom.png'
+   [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,6,0)
+   [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,1,0) # SB_LINEDOWN
+   [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,1,0)
+   Save-OwnedWindowCapture 'atlas-native-scroll-middle.png'
+   [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,6,0)
+   Save-OwnedWindowCapture 'atlas-native-scroll-return.png'
+   $collectionTabs=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,100)
+   [void][AtlasSmokeWindow]::ControlMessage($collectionTabs,0x1330,1,0)
+   $openData=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,132)
+   if ($openData -eq [IntPtr]::Zero -or ![AtlasSmokeWindow]::IsWindowVisible($openData)) { throw 'Program data folder button is missing on collection tab' }
+   Save-OwnedWindowCapture 'atlas-native-collection.png'
+   [void][AtlasSmokeWindow]::ControlMessage($collectionTabs,0x1330,0,0)
    if ($portableMode) {
    # Use the real --demo archive through its actual relative path. No runner
    # username/path, fabricated list rows, or real LINE data enters the image.

@@ -19,3 +19,14 @@ assert(cpp.includes('if(!CreateDirectoryW(proposed.c_str(),&security.attributes)
 assert(!cpp.includes('SetNamedSecurityInfo')&&!cpp.includes('SetFileSecurity'));
 assert(cpp.includes('relativeToDirectory(absolute,executableDirectory())'));
 console.log('DPI/portable GUI source contracts passed. Real monitor scaling and interactive folder flows require Windows runtime validation.');
+
+assert(cpp.includes('WS_HSCROLL|WS_CLIPCHILDREN'),'main parent excludes child control paint');
+const layout=cpp.slice(cpp.indexOf('void layout()'),cpp.indexOf('void scrollView('));
+assert(layout.includes('scaled(b.bottom-b.top),FALSE)'),'moving each control does not synchronously repaint siblings');
+assert(layout.includes('RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW'),'full control tree gets one coherent repaint after layout');
+assert(layout.indexOf('RedrawWindow(')>layout.indexOf('MoveWindow('),'batch redraw follows child movement');
+assert(cpp.includes('ID_OPEN_DATA')&&cpp.includes('if(id==ID_OPEN_DATA){openProgramData();return;}'),'data-folder button is wired');
+assert(cpp.includes('explore(app.config)<=32'),'explorer shell failures are not reported as success');
+assert(cpp.includes('historyStarted(time)')&&cpp.includes('開始時間 (UTC+8)'),'history text and label use the same explicit timezone');
+assert(cpp.includes('沒有設定時只檢查 LINE 版本，不會列出聊天室'),'missing-profile UI names actual capability');
+assert(cpp.includes('僅載入不代表已驗證'),'profile loading is not advertised as validated capture');

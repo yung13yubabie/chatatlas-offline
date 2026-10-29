@@ -14,7 +14,11 @@ const std::vector<std::string> tables={"settings","chats","items","blobs","attac
 void checkTick(const Tick& tick){if(tick)tick();}
 std::string value(const J& row,const char* name){if(!row.contains(name)||!row[name].is_string())throw IntegrityError("備份欄位格式不正確。");return row[name].get<std::string>();}
 void rejectSidecars(const fs::path& source){for(auto suffix:{"-wal","-shm","-journal"}){auto p=source/(std::string("archive.sqlite3")+suffix);noLinks(p);if(fs::exists(p))throw Error("請使用已解壓縮的完整備份，不要匯入正在使用或含交易暫存檔的收藏。");}}
-void exclusiveDirectory(const fs::path& p){noLinks(p);
+void exclusiveDirectory(const fs::path& p){
+#ifdef _WIN32
+ requireLocalPrivatePath(p);
+#endif
+ noLinks(p);
 #ifdef _WIN32
  PrivateSecurity security;if(!CreateDirectoryW(p.c_str(),&security.attributes))throw Error("匯入目的地已存在或無法建立，請改用新的資料夾名稱。");requirePrivateDirectory(p);
 #else

@@ -35,9 +35,9 @@ std::string now(){auto t=std::chrono::system_clock::now();time_t tt=std::chrono:
  char out[64];std::strftime(out,sizeof out,"%Y-%m-%dT%H:%M:%S",&tm);return std::string(out)+".000+00:00";}
 void noLinks(const fs::path&given){auto p=fs::absolute(given).lexically_normal();while(!p.empty()){
 #ifdef _WIN32
- DWORD attr=GetFileAttributesW(p.c_str());if(attr!=INVALID_FILE_ATTRIBUTES&&(attr&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("保存位置包含雲端同步標記或連結，請改用一般本機私人資料夾。");
+ DWORD attr=GetFileAttributesW(p.c_str());if(attr!=INVALID_FILE_ATTRIBUTES&&(attr&FILE_ATTRIBUTE_REPARSE_POINT))throw Error("保存位置包含雲端同步標記或連結，請改用未同步的一般本機私人資料夾；例如已開啟 OneDrive 同步的桌面或文件需另選位置。");
 #else
- std::error_code ec;if(fs::is_symlink(fs::symlink_status(p,ec)))throw Error("保存位置包含雲端同步標記或連結，請改用一般本機私人資料夾。");
+ std::error_code ec;if(fs::is_symlink(fs::symlink_status(p,ec)))throw Error("保存位置包含雲端同步標記或連結，請改用未同步的一般本機私人資料夾；例如已開啟 OneDrive 同步的桌面或文件需另選位置。");
 #endif
  auto next=p.parent_path();if(next==p)break;p=next;}}
 // Compare directory identities while walking the resolved ancestry. A lexical
@@ -95,7 +95,11 @@ std::optional<fs::path> relativeToDirectory(const fs::path& target,const fs::pat
  }
 #endif
 }
-fs::path privateDir(fs::path p){p=fs::absolute(p).lexically_normal();noLinks(p);
+fs::path privateDir(fs::path p){
+#ifdef _WIN32
+ requireLocalPrivatePath(p);
+#endif
+ p=fs::absolute(p).lexically_normal();noLinks(p);
  // Only protect a directory created by this call. Existing destination parents
  // may be shared system or user folders; changing their permissions is unsafe.
  #ifdef _WIN32
@@ -131,7 +135,11 @@ void copyVerified(const fs::path&from,const fs::path&to,int64_t expected,const s
 std::string safeName(std::string s){for(auto&c:s)if(static_cast<unsigned char>(c)<32||std::string("<>:\"/\\|?*").find(c)!=std::string::npos)c='_';while(!s.empty()&&(s.back()=='.'||s.back()==' '))s.pop_back();if(s.size()>150){s.resize(150);while(!s.empty()&&(static_cast<unsigned char>(s.back())&0xc0)==0x80)s.pop_back();if(!s.empty()&&(static_cast<unsigned char>(s.back())&0x80))s.pop_back();}if(s.empty())s="attachment";if(reservedDevice(s.substr(0,s.find('.'))))s="_"+s;return s;}
 std::string base64(std::string_view s){static const char*c="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";std::string out;out.reserve((s.size()+2)/3*4);for(size_t i=0;i<s.size();i+=3){uint32_t v=uint32_t(static_cast<unsigned char>(s[i]))<<16;if(i+1<s.size())v|=uint32_t(static_cast<unsigned char>(s[i+1]))<<8;if(i+2<s.size())v|=static_cast<unsigned char>(s[i+2]);out+=c[(v>>18)&63];out+=c[(v>>12)&63];out+=i+1<s.size()?c[(v>>6)&63]:'=';out+=i+2<s.size()?c[v&63]:'=';}return out;}
 std::string safeJson(const J&v){auto s=v.dump(-1,' ',true);std::string result;for(char c:s)if(c=='<')result+="\\u003c";else if(c=='&')result+="\\u0026";else result+=c;return result;}
-Lock::Lock(const fs::path&root){auto p=within(root,".vault-lock");
+Lock::Lock(const fs::path&root){
+#ifdef _WIN32
+ requireLocalPrivatePath(root);
+#endif
+ auto p=within(root,".vault-lock");
 #ifdef _WIN32
  const auto expected=expectedFilePath(p);PrivateSecurity security;HANDLE h=CreateFileW(p.c_str(),GENERIC_READ|GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_WRITE,&security.attributes,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);if(h!=INVALID_HANDLE_VALUE){try{verifyFileHandle(h,expected);}catch(...){CloseHandle(h);throw;}}OVERLAPPED o{};if(h==INVALID_HANDLE_VALUE||!LockFileEx(h,LOCKFILE_EXCLUSIVE_LOCK|LOCKFILE_FAIL_IMMEDIATELY,0,1,0,&o)){if(h!=INVALID_HANDLE_VALUE)CloseHandle(h);throw Error("這份收藏正在使用中，請稍後再試。");}handle=h;
 #else

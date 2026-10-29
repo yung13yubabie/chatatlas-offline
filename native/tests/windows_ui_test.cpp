@@ -14,7 +14,8 @@ int main(){try{
  initializeDpi();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
  INITCOMMONCONTROLSEX controls{sizeof controls,ICC_LISTVIEW_CLASSES|ICC_TAB_CLASSES|ICC_DATE_CLASSES};requireUi(InitCommonControlsEx(&controls),"common controls initialize");
  WNDCLASSW wc{};wc.lpfnWndProc=procedure;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"ChatAtlasDpiRegression";requireUi(RegisterClassW(&wc)!=0,"test class registers");
- auto window=CreateWindowExW(0,wc.lpszClassName,L"ChatAtlas synthetic DPI test",WS_OVERLAPPEDWINDOW|WS_VSCROLL|WS_HSCROLL,0,0,940,880,nullptr,nullptr,wc.hInstance,nullptr);requireUi(window!=nullptr,"real application controls create");ShowWindow(window,SW_SHOWNOACTIVATE);
+ auto window=CreateWindowExW(0,wc.lpszClassName,L"ChatAtlas synthetic DPI test",mainWindowStyle,0,0,940,880,nullptr,nullptr,wc.hInstance,nullptr);requireUi(window!=nullptr,"real application controls create");ShowWindow(window,SW_SHOWNOACTIVATE);
+ requireUi((GetWindowLongPtrW(window,GWL_STYLE)&WS_CLIPCHILDREN)!=0,"parent painting excludes child control areas");
  for(UINT dpi:{96u,120u,144u,192u,96u}){
   RECT suggested{0,0,MulDiv(940,dpi,96),MulDiv(880,dpi,96)};
   SendMessageW(window,WM_DPICHANGED,MAKEWPARAM(dpi,dpi),reinterpret_cast<LPARAM>(&suggested));
@@ -23,8 +24,14 @@ int main(){try{
   RECT actual{};GetWindowRect(window,&actual);auto work=workArea(window);requireUi(actual.left>=work.left&&actual.top>=work.top&&actual.right<=work.right&&actual.bottom<=work.bottom,"window stays within work area");
  }
  SetWindowPos(window,nullptr,0,0,600,400,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);layout();SCROLLINFO info{sizeof(info),SIF_ALL};requireUi(GetScrollInfo(window,SB_VERT,&info)&&info.nMax>=819&&info.nPage<820,"small window has vertical scroll range");
+ for(int cycle=0;cycle<4;cycle++){scrollView(false,SB_BOTTOM);scrollView(false,SB_TOP);requireUi(!app.layingOut,"scroll repaint exits layout guard");requireUi(GetUpdateRect(window,nullptr,FALSE)==0,"scroll batch redraw consumes parent invalidation");}
  scrollView(false,SB_BOTTOM);requireUi(app.scrollY>0,"scroll reaches lower controls");scrollView(false,SB_TOP);requireUi(app.scrollY==0,"scroll returns to top");
  SetFocus(GetDlgItem(window,ID_START));revealFocus();RECT client{},button{};GetClientRect(window,&client);GetWindowRect(GetDlgItem(window,ID_START),&button);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&button),2);requireUi(button.top>=0&&button.bottom<=client.bottom,"keyboard focus reveals lower control");
+ activatePage(1);requireUi(IsWindowVisible(GetDlgItem(window,ID_OPEN_DATA)),"program data button belongs to collection page");
+ bool explored=false;auto preferenceBeforeExplore=fs::exists(app.config/L"preferences.local.json");openProgramData([&](const fs::path& path){explored=path==app.config;return intptr_t(33);});requireUi(explored&&fs::exists(app.config/L"preferences.local.json")==preferenceBeforeExplore,"data folder opener uses config without writing preferences");
+ bool exploreFailed=false;try{openProgramData([](const fs::path&){return intptr_t(5);});}catch(const Error& e){exploreFailed=std::string(e.what()).find("無法開啟程式資料夾")!=std::string::npos;}requireUi(exploreFailed,"shell explorer failures are surfaced");
+ for(int page:{0,1,2,3,1}){activatePage(page);requireUi(IsWindowVisible(GetDlgItem(window,ID_OPEN_DATA))==(page==1),"data button visibility follows active tab");requireUi(GetUpdateRect(window,nullptr,FALSE)==0,"tab switch redraws exposed parent surface");}
+ taskControls(true);requireUi(!IsWindowEnabled(GetDlgItem(window,ID_OPEN_DATA)),"data folder management disabled while collecting");taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_OPEN_DATA)),"data folder management restored after task");activatePage(0);
  auto parent=privateDir(app.config/L"Parent");
  requireAclVolume(parent/L"not-created"/L"nested");requireUi(!fs::exists(parent/L"not-created"),"volume check does not create missing paths");
  auto cancelled=newCollectionPath(parent,[](const fs::path&){return false;});requireUi(!cancelled&&!fs::exists(parent/L"ChatAtlas-Collection"),"cancel creates no collection");
@@ -42,7 +49,15 @@ int main(){try{
  auto good=app.config/L"PreferenceSuccess";{auto store=openRememberedArchive(good);requireUi(savedArchive(J::parse(readText(prefs)))==good,"successful Store opening commits final preference");}
  priorPreferences=readText(prefs);bool invalidOpen=false;try{auto store=openRememberedArchive(existing);}catch(...){invalidOpen=true;}requireUi(invalidOpen&&readText(prefs)==priorPreferences,"failed Store opening leaves last good preference unchanged");
  auto chat=app.chats[0];J row={{"id",1},{"account",app.source->account},{"source_id",chat["source_id"]},{"chat_title",chat["title"]},{"chat_kind",chat["kind"]},{"parent_source_id",chat.value("parent_source_id",J(nullptr))},{"status","complete"},{"started_at","2026-10-28T00:00:00.000+00:00"},{"counts",{{"items",1},{"reused",2}}},{"options",{{"version",1},{"kinds",J::array({"message","thread"})},{"since","2026-10-26T16:00:00.000+00:00"},{"until","2026-10-28T16:00:00.000+00:00"},{"message_mode","skip_text"}}}};
- app.historyRoot=good;app.historyTotal=1;app.history=J::array({row});drawHistory();requireUi(ListView_GetItemCount(app.historyList)==1,"history list renders actual row");
+ for(auto [input,expected]:std::vector<std::pair<std::string,std::string>>{
+ {"2026-10-28T00:00:00.000+00:00","2026-10-28 08:00:00"},
+ {"2026-12-31T20:01:02Z","2027-01-01 04:01:02"},
+ {"2024-02-28T20:00:00Z","2024-02-29 04:00:00"},
+ {"2026-10-28T08:01:02+08:00","2026-10-28 08:01:02"},
+ {"2026-10-28T23:01:02-04:00","2026-10-29 11:01:02"},
+ {"2026-10-28T23:59:59.123456789Z","2026-10-29 07:59:59"},
+ {"2026-10-28T00:00:00","時間無法辨識"},{"2026-02-30T00:00:00Z","時間無法辨識"},{"malformed","時間無法辨識"},{"","未記錄"}})requireUi(historyStarted(input)==expected,"history timestamp is explicit Taiwan display or marked invalid");
+ app.historyRoot=good;app.historyTotal=1;app.history=J::array({row});drawHistory();requireUi(ListView_GetItemCount(app.historyList)==1,"history list renders actual row");wchar_t displayedTime[64]{};ListView_GetItemText(app.historyList,0,0,displayedTime,64);requireUi(std::wstring(displayedTime)==L"2026-10-28 08:00:00","actual history control displays UTC+8");requireUi(app.history[0]["started_at"]==row["started_at"],"rendering history does not mutate stored UTC value");
  auto beforeChecked=app.checked;auto wrong=row;wrong["account"]="another-account";bool wrongRejected=false;try{applyHistory(wrong);}catch(const Error&){wrongRejected=true;}requireUi(wrongRejected&&app.checked==beforeChecked&&!app.busy,"wrong account history cannot alter selection or start capture");
  applyHistory(row);requireUi(!app.busy&&app.checked.count(chat["source_id"].get<std::string>()),"history applies known chat without automatic capture");requireUi(SendMessageW(GetDlgItem(window,ID_MESSAGE_MODE),CB_GETCURSEL,0,0)==1,"history restores skip text mode");requireUi(dateRange(ID_FROM,false)==row["options"]["since"].get<std::string>()&&dateRange(ID_UNTIL,true)==row["options"]["until"].get<std::string>(),"history UTC range roundtrips through Taiwan dates");requireUi(readText(prefs)==priorPreferences,"applying history does not commit preference before starting");
  auto selectorSnapshot=[&]{return J{{"folder",narrow(getText(app.folder))},{"mode",SendMessageW(GetDlgItem(window,ID_MESSAGE_MODE),CB_GETCURSEL,0,0)},{"from",dateRange(ID_FROM,false)},{"until",dateRange(ID_UNTIL,true)},{"messages",SendMessageW(GetDlgItem(window,ID_MESSAGES),BM_GETCHECK,0,0)},{"albums",SendMessageW(GetDlgItem(window,ID_ALBUMS),BM_GETCHECK,0,0)},{"notes",SendMessageW(GetDlgItem(window,ID_NOTES),BM_GETCHECK,0,0)},{"checked",app.checked}};};auto beforeFailedApply=selectorSnapshot();

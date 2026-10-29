@@ -9,6 +9,8 @@ if(execFileSync(zig,['version'],{encoding:'utf8'}).trim()!=='0.14.1')throw Error
 fs.mkdirSync(path.join(ROOT,'native/build'),{recursive:true});
 const base=['c++','-std=c++20','-O1','-fstack-protector-strong','-DUNICODE','-D_UNICODE','-Isrc','-Iinclude','-Ivendor'];
 function run(args){execFileSync(zig,[...base,...args],{cwd:path.join(ROOT,'native'),stdio:'inherit'});}
+run(['tests/private_path_contract_test.cpp','-o','build/private-path-contract-test.exe']);
+execFileSync(path.join(ROOT,'native/build/private-path-contract-test.exe'),[],{stdio:'inherit'});
 run(['tests/blob_path_contract_test.cpp','-o','build/blob-path-contract-test.exe']);
 execFileSync(path.join(ROOT,'native/build/blob-path-contract-test.exe'),[],{stdio:'inherit'});
 run(['tests/bridge_timing_test.cpp','-o','build/bridge-timing-test.exe']);
@@ -21,6 +23,9 @@ const objectRoot='build/windows-common';fs.mkdirSync(path.join(ROOT,'native',obj
 const objects=new Map();for(const source of sources){const object=objectRoot+'/'+path.basename(source,'.cpp')+'.o';run(['-c',source,'-o',object]);objects.set(source,object);}
 const common=[...objects.values()];
 const object=name=>objects.get('src/'+name+'.cpp');
+run([object('platform'),'tests/windows_private_path_test.cpp','-ladvapi32','-o','build/windows-private-path-test.exe']);
+const privatePathFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-private-path-'));
+try{execFileSync(path.join(ROOT,'native/build/windows-private-path-test.exe'),[privatePathFixture],{stdio:'inherit'});}finally{fs.rmSync(privatePathFixture,{recursive:true,force:true});}
 run([...common,'tests/windows_permissions_test.cpp','-ladvapi32','-o','build/windows-permissions-test.exe']);
 execFileSync(path.join(ROOT,'native/build/windows-permissions-test.exe'),[],{stdio:'inherit'});
 run([...common,'tests/core_test.cpp','-ladvapi32','-o','build/core-test.exe']);
