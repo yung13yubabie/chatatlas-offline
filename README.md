@@ -2,9 +2,9 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.10｜Windows x64 原生 LINE 自動抓取預覽版（待發布驗證）**
+**0.3.1-alpha.10｜Windows x64 原生 LINE 自動抓取預覽版**
 
-> alpha.10 正在準備建置與發布，以下新版連結需待 Release 公開後才可下載。目前已發布版本為 [alpha.9](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.9)；舊版 tag 與檔案保持不變。
+> alpha.10 已於 2026-10-29 發布為 Windows 預覽版。下方 EXE、ZIP 與校驗檔來自通過驗收的同一輪 CI；alpha.9 與更早版本保持不變。
 
 [Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.10/ChatAtlas-0.3.1-alpha.10-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.10/ChatAtlas-0.3.1-alpha.10-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.10/ChatAtlas-0.3.1-alpha.10-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.10/SHA256SUMS.txt) · [alpha.10 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.10)
 
@@ -18,17 +18,21 @@
 - **自動抓取：** 按首頁「自動抓取」，程式會尋找常見 LINE 位置的 `.edb`，核對其中可讀的來源，直接整理所有聊天室的對話與附件，再產生 TXT 和離線閱讀頁。不需先找資料庫或手動匯出聊天；此模式使用目前日期與文字設定，不使用手動聊天室勾選。
 - **自行限制範圍：** 按「批次選擇資料庫…」，勾選候選後按「批次連接」，或用手動檔案視窗以 Ctrl／Shift 多選 `.edb`／`.db`，一次最多 64 份。連線後勾選聊天室，再按「開始整理與更新」。
 
+![alpha.10 原生 EXE 人工環境首頁，尚未連接 LINE](docs/screenshots/windows-native-alpha10.png)
+
+本圖是發行來源 [`3ef487ee`](https://github.com/yung13yubabie/chatatlas-offline/commit/3ef487ee17030e387733dfa2a6ff05dd61ab7015) 的實際封裝 EXE，由本次 [exact-release-smoke](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729726/job/123408526110) 取得。**尚未連接 LINE，不是實機擷取證明。**「收藏保存位置」在畫面下方，可向下捲動查看。
+
 每個聊天室會標示資料庫來源，各來源分開保存；能讀取的資料庫也可能是歷史副本，不能據此認定全部屬於目前登入帳號。**LINE 來源資料庫是程式要讀取的檔案；收藏保存位置是聊藏輸出聊天與附件的資料夾，兩者不同。** 不需要先建立 `.db` 檔案，也不要把來源 `.edb` 填進收藏保存位置。
 
 這是直接讀取本機資料庫的流程，不操作 LINE 內建的「儲存聊天」選單。仍不需 LINE 版面設定、Python、JSON 匯出或另裝執行套件。TXT 位於收藏內的 `text-exports`，每次產生新的匯出批次；內容是選定聊天室在收藏中已保存的對話，可能含先前整理內容，附件原檔另存於收藏。
 
 圖片與附件使用資料庫內的訊息識別，以及同一個已核對 LINE 程序中實際讀到的登入工作階段，經原生 LINE OBS API 嘗試取回；成功後保存原始位元組、雜湊與離線預覽。**只在 LINE 裡看得到、尚未另存的圖片，目前仍不能保證取得**：缺少可辨識的工作階段或媒體金鑰、授權失效，或附件已過期時會列為未取得，不把縮圖當成完整原圖。另有可選的手動補入原檔功能；目前不另外下載對話歷史、相簿或記事本。操作步驟與格式限制見 [LINE 本機資料庫說明](docs/LINE_DATABASE_IMPORT.md)。
 
-alpha.10 的建置與發布驗證尚待完成，見 [alpha.10 核對紀錄](docs/ALPHA10_REVIEW.md)。已發布的 alpha.9、alpha.8 與更早版本不覆寫，既有證據保留於各版核對紀錄。
+alpha.10 的建置、發布與公開檔案核對結果見 [alpha.10 核對紀錄](docs/ALPHA10_REVIEW.md)。已發布的 alpha.9、alpha.8 與更早版本不覆寫，既有證據保留於各版核對紀錄。
 
 ## 下載後怎麼開
 
-1. alpha.10 發布後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
+1. 下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
 2. 雙擊 `ChatAtlas.exe`。不需安裝 Python、Node.js，也不要求另裝 .NET。
 3. 要讀取自己的 LINE，先登入 Windows LINE，確認下方「收藏保存位置」、日期與文字保存方式，再按首頁「自動抓取」。
 4. 若只想處理部分來源或聊天室，改用「批次選擇資料庫…」，連線後勾選聊天室，再按「開始整理與更新」。完成後可查看 TXT、離線頁與附件未取得原因。
@@ -65,7 +69,9 @@ alpha.10 的建置與發布驗證尚待完成，見 [alpha.10 核對紀錄](docs
 
 ## alpha.10 驗證與發布
 
-目前尚未完成 alpha.10 的最終主線來源、CI、實際封裝 EXE、來源證明與公開下載核對；不沿用 alpha.9 的成功結果。[alpha.10 核對紀錄](docs/ALPHA10_REVIEW.md) 會記錄本次來源與實際結果。
+alpha.10 發行來源固定為 [`3ef487ee`](https://github.com/yung13yubabie/chatatlas-offline/commit/3ef487ee17030e387733dfa2a6ff05dd61ab7015)。[Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729627) 三個工作與[發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729726) 四個工作全部成功，包含 Windows 的 313 項 UI、39 項批次來源、30 項 TXT 檢查，以及實際封裝 EXE 的啟動與可攜測試。
+
+五個公開產物已讀回核對大小、SHA-256 與[建置來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/61253269)；單一 EXE 與 ZIP 內位元組相同，來源 ZIP 逐檔符合發行提交。詳細結果見 [alpha.10 核對紀錄](docs/ALPHA10_REVIEW.md)。後續文件與截圖提交不是 EXE 建置來源，這些人工資料驗證也不代表真實 LINE 帳號已通過實機驗收。
 
 ## alpha.9 已發布驗證
 

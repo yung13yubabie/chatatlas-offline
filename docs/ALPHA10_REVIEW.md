@@ -1,6 +1,6 @@
 # alpha.10 原生 LINE 自動抓取、批次來源與 TXT
 
-本版讓 EXE 直接尋找並整理可讀的 LINE 本機資料庫，不要求先手動匯出聊天或安裝 Python、Node.js、MCP 等執行套件。目前尚待最終建置與發布驗證；alpha.9 與更早版本的 tag、Release 和檔案不覆寫，既有證據保留於 [alpha.9 核對紀錄](ALPHA9_REVIEW.md) 等歷史文件。
+本版讓 EXE 直接尋找並整理可讀的 LINE 本機資料庫，不要求先手動匯出聊天或安裝 Python、Node.js、MCP 等執行套件。alpha.10 已公開發布；alpha.9 與更早版本的 tag、Release 和檔案不覆寫，既有證據保留於 [alpha.9 核對紀錄](ALPHA9_REVIEW.md) 等歷史文件。
 
 ## 修改範圍
 
@@ -14,17 +14,34 @@
 
 ## 本版驗證與發布
 
-以下僅列本次必須補上的證據，不沿用 alpha.9 的成功結果，也不將尚未執行的檢查寫成通過。
+發行來源固定為 [`3ef487ee17030e387733dfa2a6ff05dd61ab7015`](https://github.com/yung13yubabie/chatatlas-offline/commit/3ef487ee17030e387733dfa2a6ff05dd61ab7015)，tag `v0.3.1-alpha.10` 直接指向這個提交。後續文件與截圖提交不會改動已發布的 tag 或檔案，也不冒充 EXE 的建置來源。
 
-| alpha.10 證據 | 狀態 |
+| alpha.10 證據 | 結果 |
 | --- | --- |
-| 最終主線來源與公開來源檢查 | 待確認最終提交；排除私人 LINE 資料、金鑰、執行資料及生成產物，保留必要來源、測試與授權。 |
-| Source CI | 待本次最終來源的 Linux、Windows 與瀏覽器結果。 |
-| 批次與程序／來源隔離 | 待本次人工資料測試，核對多庫匹配、重複／不支援來源、單庫識別沿用及取消行為。 |
-| Windows 操作與自動流程 | 待本次 Windows UI 測試，核對批次勾選／多選、全選清除、自動整理範圍與實際控制項操作。 |
-| TXT 匯出 | 待本次人工資料測試，核對選定來源範圍、附件狀態、分頁、舊匯出不覆寫及文字匯出期間取消不發布完成批次。 |
-| 原生建置與實際封裝 EXE | 待本次發布工作與 exact-release-smoke，包含啟動、關閉及可攜行為。 |
-| 建置來源證明與公開下載核對 | 待逐檔核對同一發行來源、原始 CI 位元組、SHA-256、EXE／ZIP 一致性及來源 ZIP。 |
-| Release | 尚未發布；只採用本次驗證通過的原始 CI 產物。 |
+| 最終主線來源與公開來源檢查 | 發行來源 `3ef487ee`，222 個 Git 追蹤來源檔；公開來源檢查零發現，保留必要來源、測試與授權。 |
+| Source CI | [本次工作](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729627) 的 Linux、Windows 與瀏覽器三個工作全部成功。 |
+| 批次與 TXT | 本次人工資料測試通過 39 項批次來源與 30 項 TXT 檢查，涵蓋來源隔離、單庫識別沿用、文字範圍、附件狀態與取消行為。 |
+| Windows 操作與既有原生回歸 | Windows 通過 313 項 UI、40 項候選尋找、1772 項金鑰／程序、42 項加密資料庫、89 項媒體、45 項資料庫來源與 66 項 OBS 檢查。 |
+| 原生建置與來源證明 | [發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729726) 四個工作全部成功；[來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/61253269) 已逐檔核對五個產物皆來自同一發行來源。 |
+| 實際封裝 EXE | [exact-release-smoke](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729726/job/123408526110) 成功，驗證實際套件及 EXE 的 Windows 啟動、關閉與可攜行為。 |
+| Release | [v0.3.1-alpha.10](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.10) 於 2026-10-29 11:04:30 UTC 公開發布為預覽版，僅包含下列五檔。 |
 
-預計發布 `ChatAtlas-0.3.1-alpha.10-Windows-x64.exe`、Windows ZIP、原始碼 ZIP、核對清單與 `SHA256SUMS.txt` 五個檔案。最終來源、工作連結及結果應在完成後記錄；後續文件提交不能冒充 EXE 建置來源，人工資料測試不能取代真實 LINE 實機驗收。
+## 公開產物讀回核對
+
+五個檔案已從公開 Release 網址另外下載，大小與 SHA-256 均與該輪建置 CI 的原始輸出一致，包含 `SHA256SUMS.txt` 本身。來源證明亦逐檔驗證發行來源為 `3ef487ee`。
+
+公開 Windows ZIP 通過消費者套件契約；單一 EXE 與 ZIP 內執行檔位元組相同、保有完整內嵌授權，沒有執行環境套件。來源 ZIP 恰含發行提交的 222 個 Git 追蹤檔與 `SOURCE_SHA256SUMS.txt`，共 223 項；獨立逐檔位元組、SHA-256 與完整校驗清單核對通過，沒有額外私人資料、編譯產物、執行環境包或舊 Python 實作，公開來源檢查零發現。
+
+另核對 alpha.9 的五個資產，其識別、大小、雜湊與發布時間保持原值，沒有覆寫。
+
+README 的[本版首頁截圖](screenshots/windows-native-alpha10.png) 來自發行來源 `3ef487ee` 的同次 [exact-release-smoke](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40859729726/job/123408526110)，SHA-256 為 `0ccd98ef1bc3a99ceedc8be70b8044a6970af0de7f909609eeb6ab9b26429f7b`；人工環境尚未連接 LINE，不是實機擷取證明。圖片只隨後續文件提交保存，不加入 Release 或重包產物。
+
+## 發布檔案
+
+- `ChatAtlas-0.3.1-alpha.10-Windows-x64.exe`
+- `ChatAtlas-0.3.1-alpha.10-Windows-x64-candidate.zip`
+- `ChatAtlas-0.3.1-alpha.10-source.zip`
+- `ChatAtlas-0.3.1-alpha.10-CHECKLIST.txt`
+- `SHA256SUMS.txt`
+
+本版只採用通過本次驗證的原始 CI 產物，沒有沿用舊版測試包或本機重包檔案。驗證使用人工目錄、資料庫、程序候選與附件，不代表所有 Windows LINE 帳號或僅在 LINE 可見的媒體皆已完成實機驗收；原有相容性限制仍保留。

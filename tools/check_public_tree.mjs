@@ -26,6 +26,7 @@ const copyrightHashes={
 };
 // Reviewed artificial-data screenshots only; arbitrary binary documentation is rejected.
 const documentationImages={
+  "docs/screenshots/windows-native-alpha10.png": "0ccd98ef1bc3a99ceedc8be70b8044a6970af0de7f909609eeb6ab9b26429f7b",
   "docs/screenshots/windows-native-alpha7.png": "ac15a724b441141df5842f061508bfc7a45c3305420ba3b786f67151562d1d60",
   "docs/screenshots/windows-history-alpha7.png": "20cde982cb1a13f0c19b0c20f89240ecb52fe84e77c55629ac283a62656f0747",
   "docs/screenshots/windows-scroll-middle-alpha7.png": "581804363bf606bd2a6dfb2314ba75f7a04513763a73b284445ca0d1c57ec91b",
