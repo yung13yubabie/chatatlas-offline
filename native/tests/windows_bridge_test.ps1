@@ -27,27 +27,43 @@ function New-Dialog { return [pscustomobject]@{Current=[pscustomobject]@{Process
 function Expect-Error($action,$expected) {
  try { & $action; throw 'test_did_not_fail' } catch { if ($_.Exception.Message -cne $expected) { throw } }
 }
-# Exercise the exact production process selection with synthetic objects only.
-# An absent process and a tray-only process are missing windows, not ambiguity.
-$script:FakeProcesses=@()
-Expect-Error { Get-LineMainProcess } 'line_window_missing'
-$tray=[pscustomobject]@{MainWindowHandle=[IntPtr]::Zero; Id=101}
-$main=[pscustomobject]@{MainWindowHandle=[IntPtr]123; Id=102}
-$second=[pscustomobject]@{MainWindowHandle=[IntPtr]124; Id=103}
-$script:FakeProcesses=@($tray)
-Expect-Error { Get-LineMainProcess } 'line_window_missing'
-$script:FakeProcesses=@($main)
-if ((Get-LineMainProcess).Id -ne 102) { throw 'single_main_window_not_selected' }
-$script:FakeProcesses=@($tray,$main)
-if ((Get-LineMainProcess).Id -ne 102) { throw 'tray_process_counted_as_main_window' }
-$script:FakeProcesses=@($main,$second)
-Expect-Error { Get-LineMainProcess } 'line_window_ambiguous'
-$script:FakeProcesses=@($tray,$main,$second)
-Expect-Error { Get-LineMainProcess } 'line_window_ambiguous'
-# Re-evaluate every connect request; do not retain a disappeared prior candidate.
-$script:FakeProcesses=@()
-Expect-Error { Get-LineMainProcess } 'line_window_missing'
-Write-Output 'Seven synthetic LINE main-window selection cases passed.'
+# Keep process-selection fixtures in their own scope. PowerShell variable names
+# are case-insensitive: a script-level $main would overwrite $script:Main.
+function Test-LineMainProcessSelection {
+ $priorCandidates=Get-Variable -Name FakeProcesses -Scope Script -ErrorAction SilentlyContinue
+ $priorCandidateValue=$null
+ if ($null -ne $priorCandidates) { $priorCandidateValue=$priorCandidates.Value }
+ try {
+  # Exercise the exact production process selection with synthetic objects only.
+  # An absent process and a tray-only process are missing windows, not ambiguity.
+  $script:FakeProcesses=@()
+  Expect-Error { Get-LineMainProcess } 'line_window_missing'
+  $candidateTray=[pscustomobject]@{MainWindowHandle=[IntPtr]::Zero; Id=101}
+  $candidateMain=[pscustomobject]@{MainWindowHandle=[IntPtr]123; Id=102}
+  $candidateSecond=[pscustomobject]@{MainWindowHandle=[IntPtr]124; Id=103}
+  $script:FakeProcesses=@($candidateTray)
+  Expect-Error { Get-LineMainProcess } 'line_window_missing'
+  $script:FakeProcesses=@($candidateMain)
+  if ((Get-LineMainProcess).Id -ne 102) { throw 'single_main_window_not_selected' }
+  $script:FakeProcesses=@($candidateTray,$candidateMain)
+  if ((Get-LineMainProcess).Id -ne 102) { throw 'tray_process_counted_as_main_window' }
+  $script:FakeProcesses=@($candidateMain,$candidateSecond)
+  Expect-Error { Get-LineMainProcess } 'line_window_ambiguous'
+  $script:FakeProcesses=@($candidateTray,$candidateMain,$candidateSecond)
+  Expect-Error { Get-LineMainProcess } 'line_window_ambiguous'
+  # Re-evaluate every connect request; do not retain a disappeared candidate.
+  $script:FakeProcesses=@()
+  Expect-Error { Get-LineMainProcess } 'line_window_missing'
+ } finally {
+  if ($null -ne $priorCandidates) { $script:FakeProcesses=$priorCandidateValue }
+  else { Remove-Variable -Name FakeProcesses -Scope Script }
+ }
+}
+$identityBeforeSelection=[pscustomobject]@{Main=$script:Main; ProcessId=$script:ProcessId; ProcessStarted=$script:ProcessStarted; ProcessPath=$script:ProcessPath; FakeProcess=$script:FakeProcess}
+Test-LineMainProcessSelection
+if (![Object]::ReferenceEquals($script:Main,$identityBeforeSelection.Main) -or $script:ProcessId -ne $identityBeforeSelection.ProcessId -or $script:ProcessStarted -ne $identityBeforeSelection.ProcessStarted -or $script:ProcessPath -cne $identityBeforeSelection.ProcessPath -or ![Object]::ReferenceEquals($script:FakeProcess,$identityBeforeSelection.FakeProcess)) { throw 'selection_fixture_changed_connection_identity' }
+Assert-Window
+Write-Output 'Seven synthetic LINE main-window selection cases passed; connection fixture identity preserved.'
 Assert-SaveDialog (New-Dialog)
 foreach ($change in @(@('Name','Open'),@('ClassName','NotADialog'),@('ProcessId',99),@('IsEnabled',$false),@('IsOffscreen',$true),@('NativeWindowHandle',0))) {
  $dialog=New-Dialog; $dialog.Current.($change[0])=$change[1]
