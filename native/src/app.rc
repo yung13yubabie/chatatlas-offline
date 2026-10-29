@@ -1,10 +1,11 @@
 #include <windows.h>
 LANGUAGE LANG_CHINESE,SUBLANG_CHINESE_TRADITIONAL
 1 ICON "app.ico"
+2 RCDATA "out/THIRD_PARTY_NOTICES.txt"
 1 RT_MANIFEST "app.manifest"
 1 VERSIONINFO
- FILEVERSION 0,3,1,7
- PRODUCTVERSION 0,3,1,7
+ FILEVERSION 0,3,1,8
+ PRODUCTVERSION 0,3,1,8
  FILEOS VOS_NT_WINDOWS32
  FILETYPE VFT_APP
 BEGIN
@@ -14,11 +15,11 @@ BEGIN
   BEGIN
    VALUE "CompanyName", "ChatAtlas Contributors\0"
    VALUE "FileDescription", "ChatAtlas offline knowledge map\0"
-   VALUE "FileVersion", "0.3.1.7\0"
+   VALUE "FileVersion", "0.3.1.8\0"
    VALUE "InternalName", "ChatAtlas\0"
    VALUE "OriginalFilename", "ChatAtlas.exe\0"
    VALUE "ProductName", "ChatAtlas\0"
-   VALUE "ProductVersion", "0.3.1-alpha.7\0"
+   VALUE "ProductVersion", "0.3.1-alpha.8\0"
   END
  END
  BLOCK "VarFileInfo"
