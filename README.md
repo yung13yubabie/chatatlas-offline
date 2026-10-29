@@ -4,7 +4,7 @@
 
 **0.3.1-alpha.8｜Windows x64 原生 LINE 資料庫預覽版**
 
-> 本版套件僅由通過驗收的 CI 產物發布；是否已可下載，請以本版 Release 頁的實際狀態為準。
+> alpha.8 已於 2026-10-29 發布為 Windows 預覽版。下方 EXE、ZIP 與校驗檔均來自通過驗收的同一輪 CI。
 
 [Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/SHA256SUMS.txt) · [alpha.8 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8)
 
@@ -17,11 +17,11 @@ alpha.8 在原生 EXE 內加入 LINE 本機資料庫來源。保持 Windows LINE
 
 圖片與附件使用資料庫內的訊息識別，以及同一個已核對 LINE 程序中實際讀到的登入工作階段，經原生 LINE OBS API 嘗試取回；成功後保存原始位元組、雜湊與離線預覽。**只在 LINE 裡看得到、尚未另存的圖片，目前仍不能保證取得**：缺少可辨識的工作階段或媒體金鑰、授權失效，或附件已過期時會列為未取得，不把縮圖當成完整原圖。另有可選的手動補入原檔功能；目前不另外下載對話歷史、相簿或記事本。操作步驟與格式限制見 [LINE 本機資料庫說明](docs/LINE_DATABASE_IMPORT.md)。
 
-此功能由 alpha.8 提供，既有 alpha.7 Release、tag 與 ZIP 保持不變。發布前必須通過原生建置、來源證明與實際封裝 EXE 測試；最終結果見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md) 和 Release。
+此功能由 alpha.8 提供，既有 alpha.7 Release、tag 與 ZIP 保持不變。本次原生建置、來源證明與實際封裝 EXE 測試已通過，核對紀錄見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。
 
 ## 下載後怎麼開
 
-1. 發布完成後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
+1. 下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
 2. 雙擊 `ChatAtlas.exe`。不需安裝 Python、Node.js，也不要求另裝 .NET。
 3. 想先試介面，點「查看人工範例」；或直接用瀏覽器開啟包內的 `人工範例/index.html`。
 4. 請保留 HTML 旁邊的資料夾，圖片、內容與另存檔案功能會用到它們。
@@ -57,9 +57,11 @@ alpha.8 在原生 EXE 內加入 LINE 本機資料庫來源。保持 Windows LINE
 
 ## alpha.8 驗證與發布
 
-原生資料庫與附件程式來源 `ea7b523` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40834861312) 已通過 Linux、Windows 與瀏覽器人工資料測試。這是版本更新前的程式驗證；alpha.8 最終發布仍必須對合併主線的精確來源重新建置與測試，不能沿用舊 EXE 或校驗值。
+alpha.8 發行來源固定為主線合併提交 [`89485b19`](https://github.com/yung13yubabie/chatatlas-offline/commit/89485b19d0de2398c179ba323e810c6031380b41)。[Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414962) 的 Linux、Windows 與瀏覽器工作，以及[發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414912) 的四個工作皆已通過，包含實際封裝 EXE 的 Windows 啟動、關閉及可攜測試。
 
-發布只採用同一輪 CI 的原始產物：單一 EXE、Windows ZIP、來源 ZIP、檢查說明及 `SHA256SUMS.txt`，並核對來源證明與實際封裝 EXE。合併來源、執行紀錄及發布狀態見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。
+Release 只使用該輪 CI 的五個原始產物，發布後已從公開下載網址讀回核對大小與 SHA-256；單一 EXE 與 ZIP 內的執行檔位元組相同。[建置來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/61192083) 已逐檔驗證指向同一發行來源。詳見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。
+
+後續文件更新不會改動這個 tag 或已發布檔案；文件提交不是 EXE 的建置來源。這些驗證使用人工資料，不代表已通過真實 LINE 帳號驗收。
 
 <details>
 <summary>alpha.7 與更早版本的畫面及發布紀錄</summary>

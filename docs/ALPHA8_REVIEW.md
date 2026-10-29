@@ -24,14 +24,18 @@ Repo 保留原始碼、人工測試、授權告示與固定雜湊的建置描述
 
 版本更新前的原生程式來源為 `ea7b523376e17d6b0870ccdf7ee6555792e9fe49`，其 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40834861312) Linux、Windows 與瀏覽器工作全部成功。Windows 人工資料檢查包含 152 項 UI、42 項解密、89 項媒體、45 項資料庫來源、1,762 項辨識及 66 項 OBS／LEG Y 協定檢查，以及 EXE 系統 DLL、隔離 PATH 啟動與可攜搬移後重開。
 
-這些是原生程式的基準驗證，不冒充 alpha.8 最終發布證據。加入版本、文件及發布流程後，必須對最終合併來源重跑檢查。
+上述紀錄保留為版本更新前的程式基準。alpha.8 已對最終主線合併來源 [`89485b19d0de2398c179ba323e810c6031380b41`](https://github.com/yung13yubabie/chatatlas-offline/commit/89485b19d0de2398c179ba323e810c6031380b41) 重新建置與驗證；tag `v0.3.1-alpha.8` 指向這個來源。後續文件提交不會改動 tag 或已發布檔案，也不冒充 EXE 的建置來源。
 
-| alpha.8 最終證據 | 狀態 |
+| alpha.8 最終證據 | 結果 |
 | --- | --- |
-| 主線合併提交與來源檢查 | 待本次合併與精確來源 CI 完成後記錄。 |
-| 原生建置與來源證明 | 待本次發布 workflow 完成後記錄。 |
-| 實際封裝 EXE 的 Windows 啟動、關閉與可攜測試 | 待 `exact-release-smoke` 完成後記錄。 |
-| Release 與校驗檔 | 以 [v0.3.1-alpha.8 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8) 的實際狀態與檔案為準。 |
+| 主線合併提交與來源檢查 | 發行來源 `89485b19d0de2398c179ba323e810c6031380b41`；[Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414962) 三個工作成功。 |
+| 原生建置與來源證明 | [發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414912) 四個工作成功；[來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/61192083) 已逐檔驗證五個產物皆來自同一來源。 |
+| 實際封裝 EXE 的 Windows 測試 | [exact-release-smoke](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414912/job/123335135004) 成功，檢查實際封裝檔案、啟動、關閉及可攜行為。 |
+| Release 與校驗檔 | [publish-release](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414912/job/123335345399) 成功；[v0.3.1-alpha.8](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8) 於 2026-10-29 08:12:54 UTC 公開發布為預覽版，僅包含下列五檔。 |
+
+發布工作已下載讀回核對五個檔案。發布後再次從公開 Release 網址下載五檔，其大小與 SHA-256 均與建置 CI 原始輸出一致，包含 `SHA256SUMS.txt` 本身。公開 Windows ZIP 通過消費者套件契約；單一 EXE 與 ZIP 內執行檔位元組相同、保有完整內嵌授權，使用者套件沒有執行環境套件。
+
+來源 ZIP 另逐檔核對發行提交的 211 個 Git 追蹤檔案，加上 `SOURCE_SHA256SUMS.txt`；檔案位元組一致、校驗清單完整且無重複，公開來源檢查零發現。
 
 ## 發布產物
 
