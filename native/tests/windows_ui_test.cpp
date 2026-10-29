@@ -101,11 +101,11 @@ int main(){try{
  requireUi(dateRange(ID_FROM,false).empty()&&dateRange(ID_UNTIL,true).empty(),"import clears stale dates so exact snapshot bounds apply, including intraday ranges");
  auto uncreated=app.config/L"ImportUncreated";SetWindowTextW(app.folder,uncreated.c_str());SYSTEMTIME broader{};broader.wYear=2020;broader.wMonth=1;broader.wDay=1;SendMessageW(GetDlgItem(window,ID_FROM),DTM_SETSYSTEMTIME,GDT_VALID,reinterpret_cast<LPARAM>(&broader));bool outsideRejected=false;
  try{collectClicked([](const fs::path&){return true;});}catch(const Error&){outsideRejected=true;}requireUi(outsideRejected&&!app.busy&&!fs::exists(uncreated),"expanded import scope fails before creating a collection");
- SendMessageW(GetDlgItem(window,ID_FROM),DTM_SETSYSTEMTIME,GDT_NONE,0);collectClicked([](const fs::path&){return false;});requireUi(!app.busy&&!fs::exists(uncreated),"exact intraday import scope reaches cancellable collection selection");
+ SendMessageW(GetDlgItem(window,ID_FROM),DTM_SETSYSTEMTIME,GDT_NONE,0);auto importParent=privateDir(app.config/L"ImportParent");SetWindowTextW(app.folder,importParent.c_str());bool importConfirmation=false;collectClicked([&](const fs::path& proposed){importConfirmation=proposed==importParent/L"ChatAtlas-Collection";return false;});requireUi(importConfirmation&&!app.busy&&!fs::exists(importParent/L"ChatAtlas-Collection"),"exact intraday import scope reaches cancellable collection selection");
  clearConnection();taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_ALBUMS))&&IsWindowEnabled(GetDlgItem(window,ID_NOTES)),"disconnect restores categories for other sources");
  auto originalConfig=app.config;requireUi(originalConfig.filename()==L"ChatAtlasData"&&originalConfig.parent_path()==executableDirectory(),"DPI changes preserve portable data location");
  DestroyWindow(window);CoUninitialize();std::cout<<checks<<" Win32 synthetic DPI checks passed; real multi-monitor and OS-version matrix remain separate.\n";return 0;
- }catch(const std::exception&e){if(app.window&&IsWindow(app.window))DestroyWindow(app.window);std::cerr<<e.what()<<"\n";return 1;}}
+ }catch(const std::exception&e){if(app.worker.joinable()){app.control->stopped=true;app.control->paused=false;app.worker.join();}if(app.window&&IsWindow(app.window))DestroyWindow(app.window);std::cerr<<e.what()<<"\n";return 1;}}
 #else
 int main(){std::cerr<<"This test requires Windows.\n";return 2;}
 #endif
