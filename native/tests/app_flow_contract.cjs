@@ -2,7 +2,7 @@
 const fs=require('node:fs'),assert=require('node:assert/strict'),path=require('node:path');
 const cpp=fs.readFileSync(path.join(__dirname,'../src/app.cpp'),'utf8');
 assert(cpp.includes('wcscmp(type,L"STATIC")?WS_TABSTOP:0'),'interactive controls join keyboard traversal');
-assert(cpp.includes('if(id==ID_CONNECT){clearConnection();app.report=J();'),'reconnect discards stale source before new attempt');
+assert(cpp.includes('if(id==ID_UIA_CONNECT){clearConnection();app.report=J();'),'reconnect discards stale source before new attempt');
 assert(cpp.includes('atomicText(app.config/L"connection.local.json",content);clearConnection();'),'valid replacement profile invalidates old source');
 const collect=cpp.slice(cpp.indexOf('void collectClicked('),cpp.indexOf('void command('));
 assert(collect.indexOf('if(kinds.empty())')<collect.indexOf('auto root=folderPath()'),'invalid content rejected before folder mutation');
@@ -74,10 +74,10 @@ assert(cpp.includes('私人資料庫暫存副本未能清除，仍保留在：')
 assert(opened.includes('catch(...){opened.preferenceWarning=')&&cpp.includes('return storeNotice(*opened)+opened.preferenceWarning'),'preference failure remains a GUI notice, preserving upgrade notice');
 assert(cpp.includes('store.deleteHistory(jobId);std::string message=')&&cpp.includes('try{refresh();}catch(...)'),'history deletion commits before separately handled refresh');
 
-assert.equal((cpp.match(/exportHtml\(s,\[&\]\{app.control->check\(\);\},&readerWarning\)/g)||[]).length,3,'collect, demo and rebuild consume reader publication warnings');
+assert.equal((cpp.match(/exportHtml\(s,\[&\]\{app.control->check\(\);\},&readerWarning\)/g)||[]).length,4,'collect, demo, rebuild and media fill consume reader publication warnings');
 assert(cpp.includes('if(!imported.warning.empty())message+="\\n"+imported.warning;'),'published import exposes reader cleanup warning');
-assert.equal((cpp.match(/return storeNotice\(store\)\+readerWarning\+/g)||[]).length,4,'GUI reader warnings reach success text in collect, demo, rebuild and backup');
+assert.equal((cpp.match(/return storeNotice\(store\)\+readerWarning\+/g)||[]).length,5,'GUI reader warnings reach success text in collect, demo, rebuild, backup and media fill');
 assert(main.includes('exportHtml(store,{},&warning)')&&main.includes('warning.data(),static_cast<DWORD>(warning.size())'),'EXE --demo reports successful-export cleanup warning on stderr');
-assert.equal((cpp.match(/readerWarning\+=openPublishedReader\(page,\*app.control\)/g)||[]).length,3,'all browser-opening export branches honor postpublication Stop');
+assert.equal((cpp.match(/readerWarning\+=openPublishedReader\(page,\*app.control\)/g)||[]).length,4,'all browser-opening export branches honor postpublication Stop');
 assert(cpp.includes('if(!control.stopped.load()){open(page);return {};}')&&cpp.includes('已依停止要求略過自動開啟：'),'stopped published reader preserves location without launching browser');
 console.log('Native application flow contracts passed; interactive Windows/LINE validation remains separate.');

@@ -3,11 +3,15 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {execFileSync} from 'node:child_process';
 import {ROOT} from './check_public_tree.mjs';
+import {ensureLineCipher,lineCipherFlags} from './fetch_line_cipher.mjs';
 if(process.platform!=='win32')throw Error('These tests must execute on Windows');
 const zig=process.env.ATLAS_ZIG||path.join(ROOT,'.toolchains/zig-x86_64-windows-0.14.1/zig.exe');
 if(execFileSync(zig,['version'],{encoding:'utf8'}).trim()!=='0.14.1')throw Error('Pinned compiler required');
 fs.mkdirSync(path.join(ROOT,'native/build'),{recursive:true});
-const base=['c++','-std=c++20','-O1','-fstack-protector-strong','-DUNICODE','-D_UNICODE','-Isrc','-Iinclude','-Ivendor'];
+const dependency=await ensureLineCipher();
+const engineObject=path.join(ROOT,'native/build/line-cipher-engine.o');
+execFileSync(zig,['cc','-std=c11','-O1',...lineCipherFlags,'-c',dependency.source,'-o',engineObject],{stdio:'inherit'});
+const base=['c++','-std=c++20','-O1','-fstack-protector-strong','-DUNICODE','-D_UNICODE','-Isrc','-Iinclude','-Ivendor','-I'+dependency.directory,'-lwintrust','-lcrypt32','-lwinhttp','-lbcrypt'];
 function run(args){execFileSync(zig,[...base,...args],{cwd:path.join(ROOT,'native'),stdio:'inherit'});}
 run(['tests/private_path_contract_test.cpp','-o','build/private-path-contract-test.exe']);
 execFileSync(path.join(ROOT,'native/build/private-path-contract-test.exe'),[],{stdio:'inherit'});
@@ -17,11 +21,11 @@ run(['tests/bridge_timing_test.cpp','-o','build/bridge-timing-test.exe']);
 execFileSync(path.join(ROOT,'native/build/bridge-timing-test.exe'),[],{stdio:'inherit'});
 run(['tests/request_control_test.cpp','-o','build/request-control-test.exe']);
 execFileSync(path.join(ROOT,'native/build/request-control-test.exe'),[],{stdio:'inherit'});
-const sources=['platform','database','store','archive','zip','demo','bundle','import','line_summary'].map(x=>'src/'+x+'.cpp');
+const sources=['platform','database','store','archive','zip','demo','bundle','import','line_cipher','line_process','line_database','line_media','line_obs'].map(x=>'src/'+x+'.cpp');
 // Compile identical common inputs once per runner; preserve flags across all tests.
 const objectRoot='build/windows-common';fs.mkdirSync(path.join(ROOT,'native',objectRoot),{recursive:true});
 const objects=new Map();for(const source of sources){const object=objectRoot+'/'+path.basename(source,'.cpp')+'.o';run(['-c',source,'-o',object]);objects.set(source,object);}
-const common=[...objects.values()];
+const common=[...objects.values(),engineObject];
 const object=name=>objects.get('src/'+name+'.cpp');
 run([...common,'tests/time_contract_test.cpp','-ladvapi32','-o','build/time-contract-test.exe']);
 execFileSync(path.join(ROOT,'native/build/time-contract-test.exe'),[],{stdio:'inherit'});
@@ -52,8 +56,14 @@ const uiFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-ui-dpi-'));
 try{const exe=path.join(uiFixture,'windows-ui-test.exe');fs.copyFileSync(path.join(ROOT,'native/build/windows-ui-test.exe'),exe);execFileSync(exe,[],{cwd:uiFixture,stdio:'inherit'});}finally{fs.rmSync(uiFixture,{recursive:true,force:true});}
 
 // New history and extracted-backup import use only artificial owned fixtures.
-for(const [name,prefix] of [['blob_path_store','chatatlas-blob-path-store-'],['store_cancel','chatatlas-store-cancel-'],['import','chatatlas-import-'],['capture_history','chatatlas-capture-history-'],['line_summary','chatatlas-line-summary-']]){
+for(const [name,prefix] of [['blob_path_store','chatatlas-blob-path-store-'],['store_cancel','chatatlas-store-cancel-'],['import','chatatlas-import-'],['capture_history','chatatlas-capture-history-'],['line_cipher','chatatlas-line-cipher-'],['line_media','chatatlas-line-media-'],['line_database','chatatlas-line-database-']]){
  run([...common,'tests/'+name+'_test.cpp','-ladvapi32','-o','build/'+name+'-test.exe']);
  const fixture=fs.mkdtempSync(path.join(os.tmpdir(),prefix));
  try{execFileSync(path.join(ROOT,'native/build/'+name+'-test.exe'),[fixture],{stdio:'inherit'});}finally{fs.rmSync(fixture,{recursive:true,force:true});}
 }
+
+run([...common,'tests/line_process_test.cpp','-ladvapi32','-o','build/line-process-test.exe']);
+execFileSync(path.join(ROOT,'native/build/line-process-test.exe'),[],{stdio:'inherit'});
+
+run([...common,'tests/line_obs_test.cpp','-ladvapi32','-o','build/line-obs-test.exe']);
+execFileSync(path.join(ROOT,'native/build/line-obs-test.exe'),[],{stdio:'inherit'});

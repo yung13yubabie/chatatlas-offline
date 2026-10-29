@@ -13,6 +13,7 @@ const privateParts=new Set('private archives captures profiles.local output dist
 const patterns=[/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/i,/gh[pousr]_[A-Za-z0-9]{30,}/i,/github_pat_[A-Za-z0-9_]{30,}/i,/sk-[A-Za-z0-9_-]{24,}/i,/[A-Z0-9._%+-]+@(?!example\.(?:com|invalid)\b|users\.noreply\.github\.com\b)[A-Z0-9.-]+\.[A-Z]{2,}/i,/[A-Z]:\\Users\\[^\\\s]+\\/i,/\/(?:Users|home|workspace)\/[A-Za-z0-9_.-]+\//i,/AKIA[0-9A-Z]{16}/i,/xox[baprs]-[A-Za-z0-9-]{20,}/i,/AIza[0-9A-Za-z_-]{35}/i];
 export const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const copyrightHashes={
+    "licenses/SQLite3MultipleCiphers.txt": "6365aadd5aaa82c5cad99d4bdcd5225eb9edf1fbc774fe2591f459b9c4ad2ea9",
     "licenses/nlohmann-headers-notices.txt": "8df2f05fb2c7466803b046b37f729073c1843674ffe2383c61f07e0c60bbcde7",
     "native/vendor/nlohmann/detail/output/serializer.hpp": "4c079acb8f6936c4f787fd5706a52c77a1751dd34787a821705845698ec8540e",
     "native/vendor/nlohmann/thirdparty/hedley/hedley.hpp": "1547b367895f8be9f8283ae21f583182db572ad990236220002b632a15238712",

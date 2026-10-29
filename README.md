@@ -11,11 +11,13 @@
 > **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
 > 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
 
-## 原始碼新增：匯入 LINE 本機訊息
+## 原始碼新增：直接讀取 LINE 本機資料庫
 
-目前原始碼可透過 [line-summary](https://github.com/yung13yubabie/line-summary) 唯讀取得已授權的 Windows LINE 本機訊息，匯出後在聊藏按「載入 LINE 本機匯出」，沿用聊天室選擇、收藏與離線地圖流程。這條路徑不需要 LINE 版面設定；聊藏 EXE 本身尚未直接解密 `.edb`。
+新版原始碼在原生 EXE 內加入 LINE 本機資料庫來源。保持 Windows LINE 登入，在聊藏按「連接 LINE 本機資料庫」選取自己的 `.edb`，即可列出聊天室，再使用既有收藏、搜尋與離線地圖流程。這條路徑不需 LINE 版面設定，也不需執行 Python、匯出 JSON 或另裝執行套件；所需解密程式碼已編入 EXE。
 
-此功能需從新版原始碼建置，**上方已發布的 alpha.7 ZIP 不會因此增加功能**。目前涵蓋文字與非文字訊息的標示，不包含附件原檔、相簿、記事本或全部雲端歷史。操作方式、匯出環境與驗證限制見 [LINE 本機資料匯入說明](docs/LINE_DATABASE_IMPORT.md)。
+圖片與附件使用資料庫內的訊息識別，以及同一個已核對 LINE 程序中實際讀到的登入工作階段，經原生 LINE OBS API 嘗試取回；成功後保存原始位元組、雜湊與離線預覽。**只在 LINE 裡看得到、尚未另存的圖片，目前仍不能保證取得**：缺少可辨識的工作階段或媒體金鑰、授權失效，或附件已過期時會列為未取得，不把縮圖當成完整原圖。另有可選的手動補入原檔功能；目前不另外下載對話歷史、相簿或記事本。操作步驟與格式限制見 [LINE 本機資料庫說明](docs/LINE_DATABASE_IMPORT.md)。
+
+此功能需從新版原始碼建置，**上方已發布的 alpha.7 ZIP 不會因此增加功能**。人工加密資料庫與附件測試不能代替目前 LINE 版本的實機驗證。
 
 ## 下載後怎麼開
 
@@ -24,7 +26,7 @@
 3. 想先試介面，點「查看人工範例」；或直接用瀏覽器開啟包內的 `人工範例/index.html`。
 4. 請保留 HTML 旁邊的資料夾，圖片、內容與另存檔案功能會用到它們。
 
-這是原生執行檔，不是套件安裝器；啟動不會下載或安裝開發環境。LINE 連線部分使用 Windows 內建元件。離線閱讀頁使用隨包資源，不依賴 CDN、遠端字型、線上模型或本機伺服器。
+這是原生執行檔，不是套件安裝器；啟動不會下載或安裝開發環境。LINE 本機資料庫來源的解密程式碼隨 EXE 編入，視窗辨識與程序存取使用 Windows 元件。離線閱讀頁使用隨包資源，不依賴 CDN、遠端字型、線上模型或本機伺服器。
 
 **EXE 尚未有 Authenticode 程式碼簽章。** 若系統阻擋，請勿為了使用預覽版停用 SmartScreen、防毒或其他系統保護。
 
@@ -190,12 +192,13 @@ gh attestation verify ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip --repo y
 <details>
 <summary>原始碼位置、建置與測試</summary>
 
-原生 Windows 程式位於 `native/`，共用閱讀頁位於 `src/line_vault/web/`。舊 Python 實作僅留作歷史來源參考，不會被原生 EXE、CI 或發布管線載入；請勿使用歷史 Python 啟動入口。新增的 `tools/export_line_summary.py` 是獨立、選用的匯出工具，使用 line-summary 的既有 Python 環境，不會由 EXE 啟動。
+原生 Windows 程式位於 `native/`，共用閱讀頁位於 `src/line_vault/web/`。舊 Python 實作僅留作歷史來源參考，不會被原生 EXE、CI 或發布管線載入；請勿使用歷史 Python 啟動入口。LINE 本機來源現在由 C++ 直接讀取加密資料庫，沒有 Python 或 JSON 匯出橋接步驟。
 
 建置需要 **Zig 0.14.1**、Node.js；Linux 核心測試另需 GNU C++20、make 與系統 SQLite。以下是開發者操作，**不是使用者開啟 EXE 時會執行的安裝流程**：
 
 ```sh
 node tools/fetch_zig.mjs
+node tools/fetch_line_cipher.mjs
 ATLAS_ZIG="$PWD/.toolchains/zig-x86_64-linux-0.14.1/zig" node native/build.mjs
 make -C native test build/atlas-cli
 node tools/graph_model_test.cjs
@@ -205,7 +208,7 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。核心、瀏覽器及 Windows 建置流程使用 C++、Node.js 與 PowerShell；獨立的 `line-summary-export` CI 工作使用 Python 3 標準函式庫測試選用匯出工具，不讀取真實 LINE。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。CI、原生建置與測試使用 C／C++、Node.js 及 PowerShell，不執行 Python。資料庫測試使用人工加密來源，不讀取真實 LINE。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
