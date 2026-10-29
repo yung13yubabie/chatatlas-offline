@@ -222,23 +222,24 @@ jobs:
           const notes=path.join(temporary,'release-notes.md');
           fs.writeFileSync(notes,[
             '原生 Windows x64 預覽版：直接唯讀連接選定的 LINE 本機資料庫，並嘗試自動下載圖片、影片與檔案。',
-            '開啟並登入 Windows LINE 後，在聊藏按「自動抓取」，會核對常見位置的可讀對話來源、自動整理聊天室並嘗試下載附件，另匯出 TXT 與離線閱讀頁。也可按「批次選擇資料庫」一次勾選多個 .edb／.db，再勾選聊天室。各資料庫來源分開保存，不以可解密推定目前登入帳號。',
+            '開啟並登入 Windows LINE 後，在聊藏按「自動抓取」，會核對常見位置的可讀對話來源、保存完整訊息並嘗試下載圖片、影片與檔案，另匯出 TXT 與離線閱讀頁。也可按「批次選擇資料庫」指定多個 .edb／.db，再用搜尋、篩選及分頁選擇聊天室；各來源分開保存，不以可解密推定目前登入帳號。',
+            '新版工作台提供選取本頁、選取篩選結果及清除全部選取；優先顯示可取得的名稱，名稱不足時明確標示待確認。保存進度與結果會列出檔名、狀態及原因。停止抓取後，已完成的訊息與檔案會保留並產生可再次停止的閱讀快照。離線頁使用隨附資源，不載入 CDN；全部聊天室總覽保留，訊息、圖片影片與檔案可分開閱讀。',
             '',
             '建議下載 `'+names[1]+'`，解壓整包後開啟 `ChatAtlas.exe`。另提供單一 EXE；兩者的執行檔位元組相同，且均內含第三方授權告示。不需要安裝 Python、Node.js、MCP 或另裝解密套件。',
             '',
-            '真實 LINE 帳號仍需實機驗證；無法辨識的登入資訊、缺少媒體金鑰、已過期或遭拒的附件會保留未取得狀態。相簿、記事本與雲端歷史回補尚未涵蓋。附件下載可能使用網路，產生的閱讀頁可離線開啟。',
+            '真實 LINE 帳號仍需實機驗證；無法辨識的登入資訊、缺少媒體金鑰、已過期或遭拒的檔案會保留未取得狀態。相簿、記事本與雲端歷史回補尚未涵蓋。圖片、影片與檔案下載可能使用網路，產生的閱讀頁可離線開啟。',
             '',
             'EXE 尚未有 Authenticode 簽章。請保留原始資料與備份，勿停用系統保護。',
             '',
             '來源提交：[`'+source+'`](https://github.com/'+repo+'/commit/'+source+')。',
-            '這次的原生、加密、附件與實際封裝 EXE 驗證：['+runUrl+']('+runUrl+')。全部 Release 檔案沿用這次 CI 的原始位元組，並附 SHA-256 與 GitHub 建置來源證明；這不是安全認證。',
+            '這次的原生、加密、檔案與實際封裝 EXE 驗證：['+runUrl+']('+runUrl+')。全部 Release 檔案沿用這次 CI 的原始位元組，並附 SHA-256 與 GitHub 建置來源證明；這不是安全認證。',
             '',
-            '操作說明：[LINE 本機資料庫與附件](https://github.com/'+repo+'/blob/'+tag+'/docs/LINE_DATABASE_IMPORT.md)。',
+            '操作說明：[LINE 本機資料庫與檔案](https://github.com/'+repo+'/blob/'+tag+'/docs/LINE_DATABASE_IMPORT.md)。',
             '',marker,''
           ].join('\n'),{flag:'wx'});
           let created=null,published=false;
           try{
-            const result=spawnSync('gh',['release','create',tag,'--repo',repo,'--target',source,'--title','聊藏 '+version+'｜原生 LINE 資料庫與附件','--notes-file',notes,'--prerelease','--draft',...names.map(name=>path.join('release-assets',name))],{stdio:'inherit'});
+            const result=spawnSync('gh',['release','create',tag,'--repo',repo,'--target',source,'--title','聊藏 '+version+'｜原生 LINE 資料庫與離線訊息','--notes-file',notes,'--prerelease','--draft',...names.map(name=>path.join('release-assets',name))],{stdio:'inherit'});
             const candidates=api('repos/'+repo+'/releases?per_page=100').filter(release=>release.tag_name===tag&&release.draft&&release.body?.includes(marker));
             if(candidates.length===1)created=candidates[0];
             if(result.error)throw result.error;

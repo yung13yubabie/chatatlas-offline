@@ -50,7 +50,7 @@ int main(int argc,char** argv){try{
  require(batch.sourceCount()==2&&chats.size()==2,"batch lists each source independently");
  auto chatA=select(chats,sourceA->account),chatB=select(chats,sourceB->account);
  require(chatA["source_id"]!=chatB["source_id"]&&chatA["title"]==chatB["title"],"same chat ID and title in different databases have distinct selection identities");
- require(chatA["source_database"]=="first.edb"&&chatB["source_database"]=="second.edb"&&chatA["source_label"]!=chatB["source_label"],"each visible chat retains a local database provenance label");
+ require(chatA["source_database"]=="first.edb"&&chatB["source_database"]=="second.edb"&&chatA["source_label"]=="來源 1"&&chatB["source_label"]=="來源 2","visible source labels stay readable while database identity remains available internally");
  require(batch.storageChat(chatA)==sourceA->chats()[0]&&batch.accountFor(chatA)==sourceA->account,"storage restores exact single-database account and chat identity");
  auto readA=batch.read(chatA,{"message"},"","",control),readB=batch.read(chatB,{"message"},"","",control);
  require(readA.items[0]["text"]=="第一份來源原文"&&readB.items[0]["text"]=="第二份來源原文","batch reads route to the selected database rather than the first matching chat ID");

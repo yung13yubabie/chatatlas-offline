@@ -1,5 +1,5 @@
 "use strict";
-window.VaultDownloads = (catalog, notify) => {
+window.VaultDownloads = (catalog, notify, options={}) => {
  const waiting=new Map();let busy=false,aborted=false,urls=[];
  const hex=bytes=>Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,"0")).join("");
  const stop=()=>{if(aborted)throw new DOMException("Cancelled","AbortError");};
@@ -18,6 +18,15 @@ window.VaultDownloads = (catalog, notify) => {
   stop();return bytes;
  }
  async function saveFile(attachment){
+  if(options.directFileDownloads===true&&!catalog[attachment.download]){
+   if(!['saved','preview'].includes(attachment.status)||typeof attachment.path!=='string'||!/^assets\/[a-f0-9]{2}\/[a-f0-9]{64}\.(png|jpg|gif|webp|wav|ogg|mp3|mp4|bin)$/.test(attachment.path))throw Error('Invalid local file');
+   stop();notify('正在開啟本機檔案：'+attachment.name);
+   // Chromium ignores download names for file:// images. Keep the reader open
+   // and accurately describe this fallback as opening, never verified saving.
+   const link=document.createElement('a');link.href=attachment.path;link.download=attachment.name;link.target='_blank';link.rel='noopener';document.body.appendChild(link);link.click();link.remove();
+   await new Promise(resolve=>setTimeout(resolve,0));stop();
+   return;
+  }
   const entry=catalog[attachment.download];
   if(!entry||entry.sha256!==attachment.download||!Array.isArray(entry.parts)||!entry.parts.length)throw Error("No download data");
   if(!Number.isSafeInteger(entry.size)||entry.size<0)throw Error("Invalid size");
@@ -53,8 +62,8 @@ window.VaultDownloads = (catalog, notify) => {
    if(busy){notify("正在另存檔案，請等目前操作完成。");return;}
    if(attachments.length>1&&attachments.some(a=>catalog[a.download]?.size>64*1024*1024)){notify("選取內容含大檔案，請分別按各檔案的「另存檔案」，或用桌面程式製作 ZIP。");return;}
    busy=true;aborted=false;let count=0;
-   try{for(const a of attachments){stop();await saveFile(a);count++;}notify(`已準備 ${count} 個檔案，請查看瀏覽器的下載項目或選定位置。`);}
-   catch(error){notify(error.name==="AbortError"?"另存已取消，已完成的檔案仍會保留。":error.cryptoRequired?"這個瀏覽器無法驗證檔案，請用新版 Edge 或 Chrome，或在桌面程式檢查後取用附件。":error.browserRequired?"這份檔案較大，請用新版 Edge 或 Chrome 開啟此頁後另存；原檔仍在附件資料夾。":"無法完成另存，請確認整個封存資料夾都在，並在桌面程式執行檔案檢查。");}
+   try{for(const a of attachments){stop();await saveFile(a);count++;}notify(options.directFileDownloads===true&&attachments.some(a=>!catalog[a.download])?`已開啟 ${count} 個本機檔案。若要用畫面顯示的檔名另存，請回桌面程式更新閱讀頁；本次未重新計算原檔校驗值。`:`已準備 ${count} 個檔案，請查看瀏覽器的下載項目或選定位置。`);}
+   catch(error){notify(error.name==="AbortError"?"另存已取消，已完成的檔案仍會保留。":error.cryptoRequired?"這個瀏覽器無法驗證檔案，請用新版 Edge 或 Chrome，或在桌面程式檢查後取用原檔。":error.browserRequired?"這份檔案較大，請用新版 Edge 或 Chrome 開啟此頁後另存；原檔仍在保存資料夾。":"無法完成另存，請確認整個保存資料夾都在，並在桌面程式執行檔案檢查。");}
    finally{busy=false;}
   }
  };

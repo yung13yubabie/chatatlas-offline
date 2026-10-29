@@ -50,9 +50,11 @@ int main(int argc,char** argv){try{
  require(fs::is_directory(firstOutput)&&firstOutput.parent_path()==store.root/"text-exports","text export returns a generation below the archive");
  require(!partialPresent(store.root),"successful publication leaves no partial folder");
  auto info=manifest(firstOutput);require(info["complete"]==true&&info["chats"].size()==1&&info["chats"][0]["chat_id"]==first,"selection is deduplicated and completion manifest identifies the selected chat");
+ require(info["chats"][0]["file"]=="同名_聊天室.txt"&&utf8(firstOutput.filename()).starts_with("匯出_"),"user-facing TXT and batch directory names are readable instead of long engineering identifiers");
  auto exported=body(firstOutput);
  require(exported.starts_with(std::string("\xef\xbb\xbf",3)),"TXT is UTF8 with BOM");
  require(exported.find("聊天室：同名/聊天室")!=std::string::npos&&exported.find("人工發話者")!=std::string::npos,"Unicode title and sender are preserved");
+ require(exported.find(first)==std::string::npos&&exported.find("收藏識別")==std::string::npos&&exported.find("附件")==std::string::npos,"human TXT contains no internal collection hash or vague attachment wording");
  require(exported.find("  你好\r\n  第二行\r\n  第三行\t文字\r\n")!=std::string::npos,"multiline text is preserved with unambiguous indented CRLF lines");
  require(exported.find("[時間未記錄]")<exported.find("人工分頁訊息 0"),"nullable timestamp pagination starts before timed messages");
  require(info["chats"][0]["items"]==505&&exported.find("人工分頁訊息 500")!=std::string::npos&&exported.find("人工討論串")!=std::string::npos,"keyset pagination exports all messages and threads across the 500-row boundary");
@@ -67,6 +69,7 @@ int main(int argc,char** argv){try{
  require(outputDigest.hash==info["chats"][0]["sha256"].get<std::string>()&&outputDigest.size==info["chats"][0]["bytes"].get<uint64_t>(),"completion manifest checksum and length match actual TXT bytes");
  auto bothOutput=exportChatText(store,{first,second});auto both=manifest(bothOutput);
  require(both["chats"].size()==2&&both["chats"][0]["file"]!=both["chats"][1]["file"],"same chat names and source IDs from separate accounts never collide");
+ require(both["chats"][1]["file"]=="同名_聊天室（2）.txt","duplicate titles use a short understandable sequence and retain both source conversations");
  require(body(bothOutput,0).find("SYNTHETIC-OTHER-ACCOUNT-PRIVATE")==std::string::npos&&body(bothOutput,1).find("SYNTHETIC-OTHER-ACCOUNT-PRIVATE")!=std::string::npos,"each source remains in its own TXT");
  auto repeated=exportChatText(store,{second});require(repeated!=firstOutput&&repeated!=bothOutput&&digest(outputPath).hash==outputDigest.hash,"later exports create a new generation without overwriting earlier files");
  const auto initialCompleted=completed(store.root);
@@ -86,5 +89,11 @@ int main(int argc,char** argv){try{
  store.db.execute("UPDATE chats SET account='synthetic-account-one' WHERE id=?",{first});
  require(completed(store.root)==initialCompleted&&digest(outputPath).hash==outputDigest.hash,"invalid and cancelled exports preserve previously completed bytes");
  require(store.db.rows("SELECT count(*) AS n FROM items WHERE chat_id=?",{second})[0]["n"]==1,"TXT export never changes saved source content");
+ const auto rawMid=std::string("u")+std::string(32,'a');
+ auto legacy=store.putChat("synthetic-legacy-account",{{"source_id","legacy-room"},{"title",rawMid},{"kind","direct"}});
+ auto legacyMessage=message("legacy-message","正文引用原始識別："+rawMid,0);legacyMessage["sender_name"]=rawMid;store.putItems(legacy,J::array({legacyMessage}));
+ auto legacyOutput=exportChatText(store,{legacy});auto legacyBody=body(legacyOutput);
+ require(manifest(legacyOutput)["chats"][0]["file"]=="未命名聊天室.txt"&&legacyBody.find("聊天室：未命名聊天室")!=std::string::npos&&legacyBody.find("] 名稱待確認")!=std::string::npos,"old engineering identities are hidden only in display captions and filenames");
+ require(legacyBody.find("正文引用原始識別："+rawMid)!=std::string::npos,"display cleanup never removes an identifier quoted in the actual full message body");
  std::cout<<checks<<" native chat text export checks passed\n";return 0;
  }catch(const std::exception& e){std::cerr<<"Text export test failed: "<<e.what()<<'\n';return 1;}}

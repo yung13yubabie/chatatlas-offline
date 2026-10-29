@@ -22,7 +22,7 @@ console.log('DPI/portable GUI source contracts passed. Real monitor scaling and 
 
 assert(cpp.includes('WS_HSCROLL|WS_CLIPCHILDREN'),'main parent excludes child control paint');
 const layout=cpp.slice(cpp.indexOf('void layout()'),cpp.indexOf('void scrollView('));
-assert(layout.includes('scaled(b.bottom-b.top),FALSE)'),'moving each control does not synchronously repaint siblings');
+assert(layout.includes('scaled(b.bottom-b.top)')&&layout.includes('scaled(b.right-b.left),h,FALSE)'),'moving each control does not synchronously repaint siblings');
 assert(layout.includes('RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW'),'full control tree gets one coherent repaint after layout');
 assert(layout.indexOf('RedrawWindow(')>layout.indexOf('MoveWindow('),'batch redraw follows child movement');
 assert(cpp.includes('ID_OPEN_DATA')&&cpp.includes('if(id==ID_OPEN_DATA){openProgramData();return;}'),'data-folder button is wired');
@@ -30,3 +30,7 @@ assert(cpp.includes('explore(app.config)<=32'),'explorer shell failures are not 
 assert(cpp.includes('historyStarted(time)')&&cpp.includes('開始時間 (UTC+8)'),'history text and label use the same explicit timezone');
 assert(cpp.includes('沒有設定時只檢查 LINE 版本，不會列出聊天室'),'missing-profile UI names actual capability');
 assert(cpp.includes('僅載入不代表已驗證'),'profile loading is not advertised as validated capture');
+
+assert(layout.includes('W=std::max(880,')&&layout.includes('H=std::max(680,'),'compact windows use a bounded scrolling fallback');
+assert(layout.includes('H-528')&&layout.includes('H-626'),'chat and file lists grow with the available client height');
+assert(cpp.includes('make(16,FW_NORMAL)')&&cpp.includes('make(14,FW_NORMAL)')&&cpp.includes('RGB(35,107,88)'),'native typography and primary action use the shared calm design tokens');

@@ -47,6 +47,83 @@ void fixture(const fs::path& path){
  message(writer,"unknown-message","unknown",start,16,R"({"keyMaterial":"SYNTHETIC_DO_NOT_PUBLISH"})",{{"url","https://example.invalid/synthetic"},{"title","人工連結"}},nullptr);
  writer.rows("COMMIT");
 }
+void nameMetadataChecks(const fs::path& root,Control& control){
+ const auto a="u"+std::string(32,'a'),b="u"+std::string(32,'b'),c="u"+std::string(32,'c'),d="u"+std::string(32,'d');
+ const auto badProfile="u"+std::string(32,'e'),secretProfile="u"+std::string(32,'f'),self="u"+std::string(32,'0'),cached="u"+std::string(32,'1');
+ const auto unnamedChat="u"+std::string(32,'2'),missingSender="u"+std::string(32,'3'),otherMissingSender="u"+std::string(32,'4');
+ const auto group="c"+std::string(32,'5'),emptyGroup="c"+std::string(32,'6'),square="s"+std::string(32,'7'),room="r"+std::string(32,'8');
+ const auto ambiguous="u"+std::string(32,'9'),squarePerson="p"+std::string(32,'1');
+ const auto path=root/"names-and-schema-variants.edb";
+ {
+  LineCipher writer(path,secret,nullptr,true);
+  writer.rows("CREATE TABLE _message(_id TEXT PRIMARY KEY,_chatId TEXT,_from TEXT,_createdTime INTEGER,_text TEXT,_contentType INTEGER,_contentMetadata TEXT)");
+  writer.rows("CREATE TABLE _CHAT(_ID TEXT PRIMARY KEY,_title TEXT)");
+  writer.rows("CREATE TABLE _CONTACT(_MID TEXT,_DISPLAYNAME TEXT,_displayNameOverridden TEXT,_profileInfo TEXT)");
+  writer.rows("CREATE TABLE _PROFILE(_MID TEXT PRIMARY KEY,_ProfileInfo TEXT)");
+  writer.rows("CREATE TABLE _groupChat(_chatMid TEXT PRIMARY KEY,_displayName TEXT)");
+  writer.rows("CREATE TABLE _squareChat(_squareChatMid TEXT PRIMARY KEY,_chatName TEXT)");
+  writer.rows("CREATE TABLE _squareMember(_SQUAREMEMBERMID TEXT PRIMARY KEY,_PROFILEINFO TEXT)");
+  writer.rows("CREATE TABLE _room(_mid TEXT PRIMARY KEY,_title TEXT)");
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{a," 真實名稱甲 ","　 \t",nullptr});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{b,"原名乙","同名成員",nullptr});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{c,"原名丙","同名成員",nullptr});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{d,nullptr,nullptr,J{{"MID",d},{"profile",{{"DISPLAY_NAME","個人資料內的名字"}}}}.dump()});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{badProfile,nullptr,nullptr,J{{"mid",a},{"displayName","不可套用別人的名字"}}.dump()});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{secretProfile,nullptr,nullptr,J{{"mid",secretProfile},{"displayName","SYNTHETIC_PROFILE_CREDENTIAL"},{"authToken","SYNTHETIC_PROFILE_CREDENTIAL"}}.dump()});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{squarePerson,squarePerson,nullptr,nullptr});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{ambiguous,"衝突顯示名一",nullptr,nullptr});
+  writer.rows("INSERT INTO _CONTACT VALUES(?,?,?,?)",{ambiguous,"衝突顯示名二",nullptr,nullptr});
+  writer.rows("INSERT INTO _PROFILE VALUES(?,?)",{self,J{{"mid",self},{"displayName","自己的顯示名稱"},{"authToken","SYNTHETIC_OWN_PROFILE_SECRET"}}.dump()});
+  writer.rows("INSERT INTO _squareMember VALUES(?,?)",{squarePerson,J{{"displayName","社群成員名稱"}}.dump()});
+  writer.rows("INSERT INTO _groupChat VALUES(?,?)",{group,"群組替代名稱"});writer.rows("INSERT INTO _groupChat VALUES(?,?)",{emptyGroup,"　"});
+  writer.rows("INSERT INTO _squareChat VALUES(?,?)",{square,"社群替代名稱"});writer.rows("INSERT INTO _room VALUES(?,?)",{room,"家人小組"});
+  for(const auto& mid:{a,b,c,d,badProfile,secretProfile,cached,unnamedChat,ambiguous,group,emptyGroup,square,room})writer.rows("INSERT INTO _CHAT VALUES(?,?)",{mid,mid==cached?"聊天室保留名稱":mid==group?"不應蓋掉群組真名":mid==unnamedChat?mid:""});
+  message(writer,"sender-a",group,start,0,"完整文字",J::object(),a);message(writer,"sender-b",group,start+1,0,"另一段完整文字",J::object(),b);message(writer,"sender-c",group,start+2,0,"同名但不同成員",J::object(),c);
+  message(writer,"sender-self",group,start+3,0,"自己發送的訊息",J::object(),self);message(writer,"sender-square",group,start+4,0,"非好友社群成員",J::object(),squarePerson);
+  message(writer,"sender-unknown",group,start+5,0,"名稱未同步仍保留訊息",J::object(),missingSender);message(writer,"sender-unknown-two",group,start+6,0,"另一位未同步成員",J::object(),otherMissingSender);
+  message(writer,"sender-cache",group,start+7,0,"聊天室快取名稱",J::object(),cached);
+  message(writer,"system",group,start+8,18,"甲加入了群組",J::object(),self);
+  message(writer,"system-json",group,start+9,18,J{{"message","保留安全的系統文字"},{"keyMaterial","SYNTHETIC_SYSTEM_TRANSPORT_SECRET"}}.dump(),J::object(),self);
+  message(writer,"other-type",group,start+10,99,"不明格式的原始可讀文字",J::object(),self);
+  message(writer,"call",group,start+11,6,"通話結束",J::object(),self);message(writer,"location",group,start+12,15,"集合位置",J::object(),self);
+  message(writer,"link",group,start+13,12,"",{{"title","網站標題"},{"url","https://example.invalid/link"}},self);
+  message(writer,"ext-image",group,start+14,21,"",{{"FILE_NAME","擴充圖片.png"}},self);
+  message(writer,"private-body",group,start+15,1,J{{"keyMaterial","SYNTHETIC_IMAGE_TRANSPORT_SECRET"},{"fileName","圖片.png"}}.dump(),{{"FILE_NAME","圖片.png"}},self);
+  message(writer,"private-name",group,start+16,14,"",{{"FILE_NAME","SYNTHETIC_FILENAME_CREDENTIAL"},{"keyMaterial","SYNTHETIC_FILENAME_CREDENTIAL"}},self);
+ }
+ const auto before=digest(path).hash;LineDatabaseSource source(path,secret,{},&control);
+ require(chat(source,a)["title"]=="真實名稱甲"&&chat(source,a)["name_resolved"]==true,"case-insensitive name metadata and blank local alias retain the synced display name");
+ require(chat(source,b)["title"]=="同名成員"&&chat(source,c)["title"]=="同名成員"&&chat(source,b)["source_id"]!=chat(source,c)["source_id"],"identical display names never merge distinct original MIDs");
+ require(chat(source,d)["title"]=="個人資料內的名字"&&chat(source,d)["name_resolved"]==true,"an explicit same-identity profile object can supply a missing display name");
+ require(chat(source,badProfile)["name_resolved"]==false&&chat(source,badProfile)["title"].get<std::string>().find("不可套用") == std::string::npos,"a different MID inside a cached profile is never assigned to this chat");
+ require(chat(source,secretProfile)["name_resolved"]==false&&chat(source,secretProfile)["title"].get<std::string>().find("SYNTHETIC_")==std::string::npos,"credential material is never used as a display name");
+ require(chat(source,cached)["title"]=="聊天室保留名稱"&&chat(source,cached)["kind"]=="direct","retained direct-chat title fills an absent contact record for that exact MID");
+ require(chat(source,group)["title"]=="群組替代名稱"&&chat(source,square)["title"]=="社群替代名稱"&&chat(source,room)["title"]=="家人小組","optional name columns provide group, community and room names without replacing stronger labels");
+ auto unknown=chat(source,unnamedChat),unresolvedGroup=chat(source,emptyGroup);
+ require(unknown["kind"]=="direct"&&unknown["name_resolved"]==false&&unknown["title"].get<std::string>().starts_with("未命名對話（")&&unknown["title"].get<std::string>().find(unnamedChat)==std::string::npos,"unresolved direct chats use a clearly unnamed numbered label instead of their MID");
+ require(unresolvedGroup["name_resolved"]==false&&unresolvedGroup["title"].get<std::string>().starts_with("未命名群組（"),"blank group names remain visibly unresolved");
+ require(chat(source,ambiguous)["name_resolved"]==false,"conflicting duplicate contact labels are not guessed into a real name");
+ auto batch=source.read(chat(source,group),{"message","thread"},"","",control);
+ const auto item=[&](const std::string& mid)->J{for(const auto& row:batch.items)if(row["source_id"]==mid)return row;throw std::runtime_error("missing name fixture message");};
+ require(item("sender-a")["sender_name"]=="真實名稱甲"&&item("sender-self")["sender_name"]=="自己的顯示名稱","friend and own-profile sender names are resolved without changing sender IDs");
+ require(item("sender-b")["sender_name"]==item("sender-c")["sender_name"]&&item("sender-b")["sender_id"]!=item("sender-c")["sender_id"],"same-name senders retain their separate original identities");
+ require(item("sender-square")["sender_name"]=="社群成員名稱","a valid member profile can replace an unusable MID-valued contact name");
+ require(item("sender-cache")["sender_name"]=="聊天室保留名稱","a direct-chat cache label can also name the matching sender");
+ auto unknownSender=item("sender-unknown"),otherUnknown=item("sender-unknown-two");
+ require(unknownSender["sender_id"]==missingSender&&unknownSender["sender_name"].get<std::string>().starts_with("未知成員（")&&unknownSender["sender_name"]!=otherUnknown["sender_name"]&&unknownSender["metadata"]["sender_name_resolved"]==false,"unknown senders have separate numbered display labels while preserving original MIDs");
+ require(item("system")["text"]=="[系統訊息]\n甲加入了群組"&&item("system-json")["text"]=="[系統訊息]\n保留安全的系統文字","chat events show human labels and keep readable system text without transport secrets");
+ require(item("other-type")["text"]=="[其他訊息]\n不明格式的原始可讀文字","unrecognized message types retain readable content without exposing numeric engineering labels");
+ require(item("call")["text"].get<std::string>().starts_with("[通話]")&&item("location")["text"].get<std::string>().starts_with("[位置]"),"documented call and location types use the correct human labels");
+ require(item("link")["text"].get<std::string>().find("https://example.invalid/link")!=std::string::npos,"documented link messages retain their visible link data");
+ require(std::any_of(batch.attachments.begin(),batch.attachments.end(),[](const J& row){return row["item_source_id"]=="ext-image"&&row["kind"]=="image";}),"documented extended-image messages are passed to the image resolver");
+ require(batch.items.dump().find("SYNTHETIC_")==std::string::npos,"profile, system payload and filename credentials never enter displayed or archived message text");
+ require(source.read(chat(source,group),{"message"},"","",control).items==batch.items,"unresolved sender numbering is stable across repeated reads of this source");
+ require(digest(path).hash==before,"name resolution never changes the selected source database");
+ const auto incomplete=root/"optional-name-table-missing-id.edb";
+ {LineCipher writer(incomplete,secret,nullptr,true);writer.rows("CREATE TABLE _message(_id TEXT PRIMARY KEY,_chatId TEXT,_from TEXT,_createdTime INTEGER,_text TEXT,_contentType INTEGER,_contentMetadata TEXT)");writer.rows("CREATE TABLE _contact(unrecognized_identity TEXT,_displayName TEXT)");message(writer,"retained",unnamedChat,start,0,"名稱表不相容仍保留對話",J::object(),missingSender);}
+ LineDatabaseSource incompleteSource(incomplete,secret);auto incompleteChat=chat(incompleteSource,unnamedChat);
+ require(incompleteChat["name_resolved"]==false&&incompleteSource.read(incompleteChat,{"message"},"","",control).items[0]["text"]=="名稱表不相容仍保留對話","optional unsupported name metadata does not hide the actual message history");
+}
 }
 
 int main(int argc,char** argv){try{
@@ -119,6 +196,7 @@ int main(int argc,char** argv){try{
  }
  LineDatabaseSource minimalSource(minimal,secret);require(minimalSource.chats().size()==2&&minimalSource.read(chat(minimalSource,"fallback-chat"),{"message"},"","",control).items.size()==2,"genuine required message schema works without optional name tables or non-null content type");
  rejects([&]{minimalSource.read(chat(minimalSource,"nested-chat"),{"message"},"","",control);},"deeply nested source metadata is rejected before recursion becomes unbounded");
+ nameMetadataChecks(root,control);
  auto incompatible=root/"incompatible.edb";{LineCipher writer(incompatible,secret,nullptr,true);writer.rows("CREATE TABLE _message(_id TEXT,_chatId TEXT,_from TEXT,_createdTime INTEGER,_text TEXT,_contentType INTEGER,_contentMetadata TEXT)");}
  rejects([&]{LineDatabaseSource unsupported(incompatible,secret);},"missing unique message primary key rejected");
  std::cout<<checks<<" native LINE database checks passed; encrypted synthetic fixtures only.\n";return 0;

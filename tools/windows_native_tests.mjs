@@ -59,7 +59,7 @@ const uiFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-ui-dpi-'));
 try{const exe=path.join(uiFixture,'windows-ui-test.exe');fs.copyFileSync(path.join(ROOT,'native/build/windows-ui-test.exe'),exe);execFileSync(exe,[],{cwd:uiFixture,stdio:'inherit'});}finally{fs.rmSync(uiFixture,{recursive:true,force:true});}
 
 // New history and extracted-backup import use only artificial owned fixtures.
-for(const [name,prefix] of [['blob_path_store','chatatlas-blob-path-store-'],['store_cancel','chatatlas-store-cancel-'],['import','chatatlas-import-'],['capture_history','chatatlas-capture-history-'],['line_cipher','chatatlas-line-cipher-'],['line_media','chatatlas-line-media-'],['line_database','chatatlas-line-database-'],['line_batch','chatatlas-line-batch-'],['text_export','chatatlas-text-export-']]){
+for(const [name,prefix] of [['blob_path_store','chatatlas-blob-path-store-'],['store_cancel','chatatlas-store-cancel-'],['import','chatatlas-import-'],['capture_history','chatatlas-capture-history-'],['line_cipher','chatatlas-line-cipher-'],['line_media','chatatlas-line-media-'],['line_database','chatatlas-line-database-'],['line_batch','chatatlas-line-batch-'],['text_export','chatatlas-text-export-'],['name_retention','chatatlas-name-retention-']]){
  run([...common,'tests/'+name+'_test.cpp','-ladvapi32','-o','build/'+name+'-test.exe']);
  const fixture=fs.mkdtempSync(path.join(os.tmpdir(),prefix));
  try{execFileSync(path.join(ROOT,'native/build/'+name+'-test.exe'),[fixture],{stdio:'inherit'});}finally{fs.rmSync(fixture,{recursive:true,force:true});}

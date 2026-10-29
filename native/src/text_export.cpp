@@ -1,6 +1,7 @@
 #include "text_export.hpp"
 #include "attachment_scope.hpp"
 #include "file.hpp"
+#include <algorithm>
 #include <atomic>
 #include <limits>
 #ifdef __linux__
@@ -22,6 +23,19 @@ std::string oneLine(std::string_view value){
   else result+=char(c);
  }
  return result;
+}
+bool engineeringIdentifier(std::string_view value){
+ if(value.size()<24)return false;
+ size_t start=0;if(value.front()=='u'||value.front()=='c'||value.front()=='r'||value.front()=='s')start=1;
+ return value.size()-start>=24&&std::all_of(value.begin()+start,value.end(),[](unsigned char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f')||(c>='A'&&c<='F');});
+}
+std::string displayName(const std::string& value,const std::string& fallback){return value.empty()||engineeringIdentifier(value)?fallback:oneLine(value);}
+std::string foldedFilename(std::string value){for(auto& c:value)if(c>='A'&&c<='Z')c+=char('a'-'A');return value;}
+std::string readableFile(const std::string& title,const fs::path& directory,std::set<std::string>& used){
+ auto base=safeName(displayName(title,"未命名聊天室"));
+ if(base.size()>96){base.resize(96);while(!base.empty()&&(static_cast<unsigned char>(base.back())&0xc0)==0x80)base.pop_back();if(!base.empty()&&(static_cast<unsigned char>(base.back())&0x80))base.pop_back();}
+ for(size_t index=1;index<=maxSelectedChats;++index){auto name=base+(index==1?std::string():"（"+std::to_string(index)+"）")+".txt";if(!fs::exists(within(directory,name))&&used.insert(foldedFilename(name)).second)return name;}
+ throw Error("同名聊天室過多，請分批匯出。");
 }
 std::string indented(std::string_view value){
  std::string result="  ";
@@ -78,7 +92,7 @@ std::string attachmentState(Store& store,const J& attachment,Tick tick){
  if(state=="pending")return "待下載";
  if(state=="unavailable")return "未取得";
  if(state=="failed")return "下載失敗";
- throw IntegrityError("附件狀態不正確，未發布文字匯出。");
+ throw IntegrityError("檔案狀態不正確，未發布文字匯出。");
 }
 }
 
@@ -92,7 +106,7 @@ fs::path exportChatText(Store& store,const std::vector<std::string>& chatIds,Tic
   if(!canonicalHash(id))throw IntegrityError("聊天室識別不正確，未匯出其他來源。");
   if(!seen.insert(id).second)continue;
   auto rows=store.db.rows("SELECT id,account,source_id,title FROM chats WHERE id=?",{id},tick);
-  if(rows.size()!=1||text(rows[0],"id")!=key({"chat",text(rows[0],"account"),text(rows[0],"source_id")}))throw IntegrityError("選取的聊天室與收藏不符，未匯出其他來源。");
+  if(rows.size()!=1||text(rows[0],"id")!=key({"chat",text(rows[0],"account"),text(rows[0],"source_id")}))throw IntegrityError("選取的聊天室與訊息紀錄不符，未匯出其他來源。");
   chats.push_back(std::move(rows[0]));
  }
  const auto generatedAt=now();
@@ -103,10 +117,10 @@ fs::path exportChatText(Store& store,const std::vector<std::string>& chatIds,Tic
 #endif
  Staging staging{within(parent,".partial-"+generation)};
  createNewPrivateDirectory(staging.path);staging.owned=true;
- J exported=J::array();
+ J exported=J::array();std::set<std::string> usedFilenames;
  for(const auto& chat:chats){
   if(tick)tick();const auto cid=text(chat,"id");
-  const auto filename=safeName(text(chat,"title"))+"-"+cid+".txt";
+  const auto filename=readableFile(text(chat,"title"),staging.path,usedFilenames);
   auto destination=within(staging.path,filename);
   uint64_t bytes=0,items=0,attachments=0;Sha256 checksum;
   {
@@ -116,7 +130,7 @@ fs::path exportChatText(Store& store,const std::vector<std::string>& chatIds,Tic
     file.write(value);checksum.update(value.data(),value.size());bytes+=value.size();
    };
    write(std::string("\xef\xbb\xbf",3));
-   write("聊藏對話紀錄\r\n聊天室："+oneLine(text(chat,"title"))+"\r\n收藏識別："+cid+"\r\n匯出時間："+generatedAt+"\r\n範圍：這個聊天室在收藏中已保存的對話，可能包含先前整理內容。\r\n附件原檔另存於收藏資料夾；未取得與僅預覽的狀態會另行標示。\r\n\r\n");
+   write("聊藏對話紀錄\r\n聊天室："+displayName(text(chat,"title"),"未命名聊天室")+"\r\n匯出時間："+generatedAt+"\r\n範圍：這個聊天室中已保存的完整訊息，包含先前保存內容。\r\n圖片、影片與檔案另存於儲存資料夾；未取得與僅預覽的狀態會另行標示。\r\n\r\n");
    bool first=true;std::string previousTime,previousId;int64_t previousOrdinal=0;
    while(true){
     if(tick)tick();
@@ -129,18 +143,18 @@ fs::path exportChatText(Store& store,const std::vector<std::string>& chatIds,Tic
      if(tick)tick();const auto iid=text(item,"id");
      if(iid!=key({"item",cid,text(item,"source_id")}))throw IntegrityError("對話識別與聊天室不符，未發布文字匯出。");
      const auto sent=text(item,"sent_at"),sender=text(item,"sender_name"),state=text(item,"state");
-     write("["+(sent.empty()?std::string("時間未記錄"):oneLine(sent))+"] "+(sender.empty()?std::string("未記錄發話者"):oneLine(sender))+"\r\n");
+     write("["+(sent.empty()?std::string("時間未記錄"):oneLine(sent))+"] "+displayName(sender,"名稱待確認")+"\r\n");
      if(state=="recalled")write("  [訊息已收回]\r\n");
      else if(state=="deleted")write("  [訊息已刪除]\r\n");
      else {
       const auto body=text(item,"text");
       write(body.empty()?std::string("  [未保存文字]\r\n"):indented(body));
      }
-     auto media=store.db.rows("SELECT a.id,a.chat_id,a.item_id,a.source_id,a.variant,a.version,a.name,a.status FROM attachments a WHERE a.chat_id=? AND a.item_id=? AND "+std::string(requiredAttachmentSql)+" ORDER BY a.id",{cid,iid},tick);
+     auto media=store.db.rows("SELECT a.id,a.chat_id,a.item_id,a.source_id,a.variant,a.version,a.name,a.status,a.kind,b.path FROM attachments a LEFT JOIN blobs b ON b.id=a.blob_id WHERE a.chat_id=? AND a.item_id=? AND "+std::string(requiredAttachmentSql)+" ORDER BY a.id",{cid,iid},tick);
      for(const auto& attachment:media){
       if(tick)tick();
-      if(text(attachment,"id")!=key({"attachment",cid,iid,text(attachment,"source_id"),text(attachment,"variant"),text(attachment,"version")}))throw IntegrityError("附件識別與對話不符，未發布文字匯出。");
-      write("  附件："+oneLine(text(attachment,"name"))+"（"+attachmentState(store,attachment,tick)+"）\r\n");++attachments;
+      if(text(attachment,"id")!=key({"attachment",cid,iid,text(attachment,"source_id"),text(attachment,"variant"),text(attachment,"version")}))throw IntegrityError("檔案識別與對話不符，未發布文字匯出。");
+      write("  檔案："+oneLine(captureFileName(attachment,text(item,"source_id"),sent))+"（"+attachmentState(store,attachment,tick)+"）\r\n");++attachments;
      }
      write("\r\n");++items;
      previousTime=sent;previousId=iid;previousOrdinal=item["ordinal"].get<int64_t>();
@@ -158,7 +172,9 @@ fs::path exportChatText(Store& store,const std::vector<std::string>& chatIds,Tic
   manifest.write(safeJson({{"format","ChatAtlas-text-export"},{"version",1},{"complete",true},{"created_at",generatedAt},{"scope","stored_messages_in_selected_chats"},{"chats",exported}}));manifest.sync();
  }
  if(tick)tick();
- auto published=within(parent,generation);publishDirectory(staging.path,published);staging.owned=false;
+ auto label=generatedAt.substr(0,19);std::replace(label.begin(),label.end(),'T','_');std::replace(label.begin(),label.end(),':','-');label="匯出_"+label+"_UTC";
+ auto published=within(parent,label);size_t suffix=2;while(fs::exists(published)){if(tick)tick();if(suffix>100000)throw Error("同一時間的匯出過多，請稍後再試。");published=within(parent,label+"（"+std::to_string(suffix++)+"）");}
+ publishDirectory(staging.path,published);staging.owned=false;
  return published;
 }
 }

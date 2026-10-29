@@ -88,15 +88,52 @@ void databasePickerUiChecks(){
 Result finishUiTask(HWND window){
  const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);std::unique_ptr<Result> result;
  while(!result){
-  if(std::chrono::steady_clock::now()>deadline){app.control->stopped=true;app.control->paused=false;if(app.worker.joinable())app.worker.join();app.busy=false;taskControls(false);throw std::runtime_error("synthetic automatic capture exceeded thirty seconds");}
+  if(std::chrono::steady_clock::now()>deadline){app.control->stopped=true;app.control->paused=false;app.preserveControl->stopped=true;app.preserveControl->paused=false;if(app.worker.joinable())app.worker.join();app.busy=false;taskControls(false);throw std::runtime_error("synthetic automatic capture exceeded thirty seconds");}
   MSG message{};
   if(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
    if(message.hwnd==window&&message.message==MSG_DONE)result.reset(reinterpret_cast<Result*>(message.lParam));
    else {TranslateMessage(&message);DispatchMessageW(&message);}
   }else MsgWaitForMultipleObjects(0,nullptr,FALSE,20,QS_ALLINPUT);
  }
- if(app.worker.joinable())app.worker.join();app.busy=false;taskControls(false);SetWindowTextW(GetDlgItem(window,ID_PAUSE),L"暫停");setStatus(result->message);
- return *result;
+ auto copy=*result;SendMessageW(window,MSG_DONE,0,reinterpret_cast<LPARAM>(result.release()));return copy;
+}
+std::wstring cellText(HWND list,int row,int column){wchar_t value[2048]{};ListView_GetItemText(list,row,column,value,2048);return value;}
+void workspaceSelectionUiChecks(HWND window){
+ auto previousSource=app.source;auto previousChats=app.chats;auto previousChecked=app.checked;
+ app.source=std::make_shared<DemoSource>();app.chats=J::array();app.checked.clear();app.chatOffset=0;
+ for(int index=0;index<61;++index)app.chats.push_back({{"source_id","room-"+std::to_string(index)},{"title",std::string(index<40?"跑步社 ":"工作室 ")+std::to_string(index)},{"kind",index%2?"direct":"group"},{"source_label",index<30?"來源 1 · internal-source-name":"來源 2 · internal-source-name"}});
+ refreshChatSources();for(int id:{ID_CHAT_TYPE,ID_CHAT_SOURCE,ID_CHAT_PAGE_SIZE})SendMessageW(GetDlgItem(window,id),CB_SETCURSEL,0,0);SetWindowTextW(app.search,L"");drawChats();
+ requireUi(ListView_GetItemCount(app.list)==25&&app.filtered.size()==61&&app.checked.empty(),"chat list starts on a bounded unchecked page");
+ command(ID_SELECT_PAGE);command(ID_CHAT_NEXT);requireUi(app.checked.size()==25&&app.chatOffset==25&&!ListView_GetCheckState(app.list,0),"next page retains earlier selection without checking new rows");
+ command(ID_SELECT_PAGE);requireUi(app.checked.size()==50,"select this page adds the next page to stable selection");command(ID_CLEAR_PAGE);command(ID_CHAT_PREV);requireUi(app.checked.size()==25&&ListView_GetCheckState(app.list,0),"clear this page preserves checked rows on another page");
+ SendMessageW(GetDlgItem(window,ID_CHAT_TYPE),CB_SETCURSEL,2,0);command(ID_CHAT_TYPE);requireUi(app.filtered.size()==31,"chat type filter distinguishes groups from direct conversations");
+ SendMessageW(GetDlgItem(window,ID_CHAT_SOURCE),CB_SETCURSEL,2,0);command(ID_CHAT_SOURCE);requireUi(app.filtered.size()==16,"source filter combines with chat type filter");
+ SetWindowTextW(app.search,L"工作室");requireUi(app.filtered.size()==11&&ListView_GetItemCount(app.list)==11,"name search combines with type and source filters");command(ID_CLEAR_ALL);requireUi(app.checked.empty()&&!IsWindowEnabled(GetDlgItem(window,ID_START)),"clear all also clears selected rows hidden by a filter");
+ command(ID_SELECT_FILTERED);requireUi(app.checked.size()==11&&ListView_GetCheckState(app.list,0),"select filtered results checks every matching chat");
+ SetWindowTextW(app.search,L"");for(int id:{ID_CHAT_TYPE,ID_CHAT_SOURCE})SendMessageW(GetDlgItem(window,id),CB_SETCURSEL,0,0);SendMessageW(GetDlgItem(window,ID_CHAT_PAGE_SIZE),CB_SETCURSEL,1,0);command(ID_CHAT_PAGE_SIZE);requireUi(ListView_GetItemCount(app.list)==50&&app.checked.size()==11,"page-size change preserves cross-page selection");command(ID_CHAT_NEXT);requireUi(ListView_GetItemCount(app.list)==11&&app.chatOffset==50,"the final chat page is reachable");
+ app.chats=J::array({{{"source_id","safe-test-id"},{"title","u01234567890123456789012345678901"},{"kind","direct"}}});app.chatOffset=0;refreshChatSources();drawChats();requireUi(cellText(app.list,0,0)==L"名稱待確認","unknown identity is displayed as a human status instead of a raw identifier");
+ app.source=previousSource;app.chats=previousChats;app.checked=previousChecked;app.chatOffset=0;for(int id:{ID_CHAT_TYPE,ID_CHAT_SOURCE,ID_CHAT_PAGE_SIZE})SendMessageW(GetDlgItem(window,id),CB_SETCURSEL,0,0);refreshChatSources();drawChats();
+}
+void workspaceBoundsUiChecks(){
+ for(int page=0;page<5;++page){activatePage(page);std::vector<RECT> bounds;for(const auto& [control,owner]:app.children){if(owner>=0&&owner!=page)continue;auto found=app.bases.find(control);if(found==app.bases.end())continue;auto b=found->second;if(b.right<=b.left||b.bottom<=b.top)continue;requireUi(b.left>=0&&b.top>=0&&b.right<=std::max(880L,LONG(app.bases[app.tabs].right+24)),"all workspace controls stay inside the logical scroll canvas");for(const auto& earlier:bounds){RECT overlap{};requireUi(!IntersectRect(&overlap,&b,&earlier),"visible header, list, settings and footer controls do not overlap");}bounds.push_back(b);}}
+ activatePage(0);
+}
+class StopAfterSavedFileSource:public DemoSource{
+ public:std::atomic<bool> waiting{false};
+ fs::path download(const J& chat,const J& file,const fs::path& destination,Control& control)override{if(downloads){waiting=true;for(;;)control.wait(20);}return DemoSource::download(chat,file,destination,control);}
+};
+void savedResultUiChecks(HWND window){
+ resetCaptureResults();CaptureProgress event;event.phase="file";event.chat_id="synthetic-chat";event.chat_title="跑步小組";event.chat_index=1;event.chat_total=1;event.file_id="synthetic-file";event.file_name="路線照片.jpg";event.kind="image";event.variant="full";event.status="pending";event.file_index=1;event.file_total=1;
+ SendMessageW(window,MSG_PROGRESS,0,reinterpret_cast<LPARAM>(new CaptureProgress(event)));requireUi(ListView_GetItemCount(app.fileList)==1&&cellText(app.fileList,0,1)==L"路線照片.jpg"&&cellText(app.fileList,0,3)==L"正在保存","typed file progress identifies the exact current file");
+ event.phase="terminal";event.status="saved";event.reason="原檔已保存。";SendMessageW(window,MSG_PROGRESS,0,reinterpret_cast<LPARAM>(new CaptureProgress(event)));requireUi(ListView_GetItemCount(app.fileList)==1&&cellText(app.fileList,0,3)==L"原檔已保存"&&cellText(app.fileList,0,4)==L"原檔已保存。","terminal progress updates its existing row with the saved state and reason");
+ auto source=std::make_shared<StopAfterSavedFileSource>();app.source=source;app.chats=source->chats();app.checked={app.chats[0]["source_id"].get<std::string>()};refreshChatSources();drawChats();auto root=app.config/L"StoppedCaptureResult";SetWindowTextW(app.folder,root.c_str());
+ for(int id:{ID_MESSAGES,ID_ALBUMS,ID_NOTES})SendMessageW(GetDlgItem(window,id),BM_SETCHECK,BST_CHECKED,0);for(int id:{ID_FROM,ID_UNTIL})SendMessageW(GetDlgItem(window,id),DTM_SETSYSTEMTIME,GDT_NONE,0);SendMessageW(GetDlgItem(window,ID_MESSAGE_MODE),CB_SETCURSEL,0,0);collectClicked([](const fs::path&){return true;});
+ auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(15);while(!source->waiting){requireUi(std::chrono::steady_clock::now()<deadline,"capture reaches the second synthetic download");MSG message{};if(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){TranslateMessage(&message);DispatchMessageW(&message);}else MsgWaitForMultipleObjects(0,nullptr,FALSE,10,QS_ALLINPUT);}
+ command(ID_STOP);auto stopped=finishUiTask(window);requireUi(stopped.stopped&&!stopped.error&&app.control->stopped&&app.page==1&&getText(app.taskNote).find(L"已保留")!=std::wstring::npos,"Stop retains its cancellation flag and leaves a persistent result workspace");
+ requireUi(fs::is_regular_file(root/L"index.html"),"Stop publishes a readable partial result instead of losing the completed work");auto html=readText(root/L"index.html");auto marker=html.find("id=\"manifest\"");auto begin=html.find('>',marker),end=html.find("</script>",begin);requireUi(marker!=std::string::npos&&begin!=std::string::npos&&end!=std::string::npos,"partial reader has its offline manifest");auto manifest=J::parse(html.substr(begin+1,end-begin-1));requireUi(manifest.value("direct_file_downloads",false)&&manifest["downloads"].empty(),"Stop snapshot uses saved local originals without rebuilding base64 download parts");
+ {Store saved(root);requireUi(saved.summary()["items"].get<int>()>0&&saved.db.rows("SELECT id FROM blobs").size()==1,"messages and the first completed original survive Stop");auto issues=saved.check();for(const auto& issue:issues)requireUi(issue["code"]!="file"&&issue["code"]!="reader_data","partial reader preserves valid original bytes and needs no generated download parts");}
+ requireUi(!app.fileReport["files"].empty()&&ListView_GetItemCount(app.fileList)>=1,"Stop leaves per-file availability rows visible");fileReportClicked(true);auto checked=finishUiTask(window);requireUi(!checked.error&&app.fileVerifyContents&&getText(app.taskNote).find(L"路線色調參考.png")!=std::wstring::npos,"full inspection keeps concrete file names and reasons in the persistent result");
+ app.preserving=true;app.control->stopped=true;app.preserveControl=std::make_shared<Control>();command(ID_STOP);requireUi(app.control->stopped&&app.preserveControl->stopped&&!app.preserveControl->paused,"a second Stop targets reader preservation without resetting original cancellation");app.preserving=false;
 }
 void automaticCaptureUiChecks(HWND window){
  auto parent=privateDir(app.config/L"AutoCaptureParent"),destination=parent/L"ChatAtlas-Collection";
@@ -115,7 +152,7 @@ void automaticCaptureUiChecks(HWND window){
  const auto completion=finishUiTask(window);
  requireUi(!completion.error&&!app.busy&&IsWindowEnabled(GetDlgItem(window,ID_AUTO_CAPTURE)),"automatic capture completes without a modal test prompt and restores the action control");
  requireUi(connections==1&&exactFiles,"automatic capture connects the complete discovered batch once");
- requireUi(app.source==source&&app.chats==originalChats&&app.checked.size()==originalChats.size(),"automatic capture publishes every routed source chat and checks the processed batch");
+ requireUi(app.source==source&&app.chats==originalChats&&app.checked.empty(),"automatic capture publishes every routed source chat without silently checking the processed batch");
  requireUi(dateRange(ID_FROM,false)==capturedSince&&dateRange(ID_UNTIL,true).empty()&&SendMessageW(GetDlgItem(window,ID_MESSAGE_MODE),CB_GETCURSEL,0,0)==1,"automatic connection publication preserves the captured date range and skip-text selection");
  requireUi(folderPath()==destination&&fs::is_regular_file(destination/L"archive.sqlite3")&&fs::is_regular_file(destination/L"index.html"),"one automatic click creates a dedicated collection and the offline reader");
  requireUi(opened==std::vector<fs::path>{destination/L"index.html"},"automatic capture opens the published reader through the injected callback without launching a browser in the test");
@@ -152,12 +189,12 @@ int main(){try{
  for(UINT dpi:{96u,120u,144u,192u,96u}){
   RECT suggested{0,0,MulDiv(940,dpi,96),MulDiv(880,dpi,96)};
   SendMessageW(window,WM_DPICHANGED,MAKEWPARAM(dpi,dpi),reinterpret_cast<LPARAM>(&suggested));
-  requireUi(app.dpi==dpi,"DPI state updates");fontHeight(GetDlgItem(window,ID_START),MulDiv(16,dpi,96));fontHeight(GetDlgItem(window,ID_INFO),MulDiv(13,dpi,96));
-  RECT button{};requireUi(GetWindowRect(GetDlgItem(window,ID_START),&button),"button bounds readable");requireUi(button.right-button.left==MulDiv(200,dpi,96),"button width follows DPI");requireUi(button.bottom-button.top==MulDiv(40,dpi,96),"button height follows DPI");
-  RECT actual{};GetWindowRect(window,&actual);auto work=workArea(window);requireUi(actual.left>=work.left&&actual.top>=work.top&&actual.right<=work.right&&actual.bottom<=work.bottom,"window stays within work area");
+  requireUi(app.dpi==dpi,"DPI state updates");fontHeight(GetDlgItem(window,ID_START),MulDiv(16,dpi,96));fontHeight(GetDlgItem(window,ID_INFO),MulDiv(14,dpi,96));
+  RECT button{};requireUi(GetWindowRect(GetDlgItem(window,ID_START),&button),"button bounds readable");requireUi(button.right-button.left==MulDiv(200,dpi,96),"button width follows DPI");requireUi(button.bottom-button.top==MulDiv(36,dpi,96),"button height follows DPI");
+  RECT actual{};GetWindowRect(window,&actual);auto work=workArea(window);requireUi(actual.left>=work.left&&actual.top>=work.top&&actual.right<=work.right&&actual.bottom<=work.bottom,"window stays within work area");workspaceBoundsUiChecks();
  }
- databasePickerUiChecks();
- SetWindowPos(window,nullptr,0,0,600,400,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);layout();SCROLLINFO info{sizeof(info),SIF_ALL};requireUi(GetScrollInfo(window,SB_VERT,&info)&&info.nMax>=819&&info.nPage<820,"small window has vertical scroll range");
+ workspaceSelectionUiChecks(window);databasePickerUiChecks();
+ SetWindowPos(window,nullptr,0,0,600,400,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);layout();SCROLLINFO info{sizeof(info),SIF_ALL};requireUi(GetScrollInfo(window,SB_VERT,&info)&&info.nMax>=679&&info.nPage<680,"small window has vertical scroll range");
  for(int cycle=0;cycle<4;cycle++){scrollView(false,SB_BOTTOM);scrollView(false,SB_TOP);requireUi(!app.layingOut,"scroll repaint exits layout guard");requireUi(GetUpdateRect(window,nullptr,FALSE)==0,"scroll batch redraw consumes parent invalidation");}
  scrollView(false,SB_BOTTOM);requireUi(app.scrollY>0,"scroll reaches lower controls");scrollView(false,SB_TOP);requireUi(app.scrollY==0,"scroll returns to top");
  SetFocus(GetDlgItem(window,ID_START));revealFocus();RECT client{},button{};GetClientRect(window,&client);GetWindowRect(GetDlgItem(window,ID_START),&button);MapWindowPoints(nullptr,window,reinterpret_cast<POINT*>(&button),2);requireUi(button.top>=0&&button.bottom<=client.bottom,"keyboard focus reveals lower control");
@@ -207,7 +244,7 @@ int main(){try{
  SetWindowTextW(app.folder,parent.c_str());bool attemptedRemember=false;auto committedMessage=finishPublishedImport(ImportResult{good,{},"synthetic reader cleanup warning"},[&](const fs::path& saved){attemptedRemember=true;requireUi(saved==good,"postcommit preference receives saved root");throw Error("injected preference write failure");});
  MSG location{};requireUi(PeekMessageW(&location,window,MSG_LOCATION,MSG_LOCATION,PM_REMOVE)!=0,"published import still posts location after preference failure");DispatchMessageW(&location);
  requireUi(attemptedRemember&&getText(app.folder)==good.wstring()&&readText(prefs)==priorPreferences,"postcommit warning preserves old preferences and displays saved root");requireUi(committedMessage.find("已匯入")!=std::string::npos&&committedMessage.find("偏好位置未能記住")!=std::string::npos&&committedMessage.find(utf8(good))!=std::string::npos,"postcommit failure stays success with explicit location and warning");
- requireUi(publishedZipMessage({})=="完整收藏副本已保存。","published ZIP without retained snapshot has plain success");
+ requireUi(publishedZipMessage({})=="完整聊天紀錄副本已保存。","published ZIP without retained snapshot has plain success");
  requireUi(committedMessage.find("synthetic reader cleanup warning")!=std::string::npos,"published import includes reader cleanup warning without hiding location or preference notice");
  auto retainedZipSnapshot=good/L"backup-synthetic.sqlite3";auto zipMessage=publishedZipMessage(retainedZipSnapshot);requireUi(zipMessage.find("完整收藏副本已保存。")!=std::string::npos&&zipMessage.find("未能清除")!=std::string::npos&&zipMessage.find(utf8(retainedZipSnapshot))!=std::string::npos,"published ZIP cleanup failure preserves success and discloses exact retained private snapshot");
  // Commit a synthetic legacy upgrade, then inject only ancillary preference failure.
@@ -237,7 +274,7 @@ int main(){try{
  requireUi(pickedDatabase&&app.source==nativeSource&&app.chats==connectedChats&&app.checked==connectedChecked&&app.report==freshReport&&!app.busy,"cancelling a new database selection preserves the current source and connection report");
  requireUi(getText(app.folder)==connectedFolder&&readText(prefs)==connectedPreferences,"cancelling a new database selection preserves collection location and preference bytes");
  activatePage(1);requireUi(IsWindowVisible(GetDlgItem(window,ID_MEDIA_IMPORT)),"original-file fill-in belongs to the collection page");taskControls(true);requireUi(!IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is disabled while collecting");taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is restored after a task");
- automaticCaptureUiChecks(window);
+ automaticCaptureUiChecks(window);savedResultUiChecks(window);
  clearConnection();nativeSource.reset();taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_ALBUMS)),"disconnect restores other source content controls");
  auto originalConfig=app.config;requireUi(originalConfig.filename()==L"ChatAtlasData"&&originalConfig.parent_path()==executableDirectory(),"DPI changes preserve portable data location");
  DestroyWindow(window);CoUninitialize();std::cout<<checks<<" Win32 synthetic DPI checks passed; real multi-monitor and OS-version matrix remain separate.\n";return 0;

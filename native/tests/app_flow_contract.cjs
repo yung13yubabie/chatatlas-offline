@@ -9,8 +9,8 @@ assert(collect.indexOf('if(kinds.empty())')<collect.indexOf('auto root=folderPat
 assert(collect.indexOf('since>=until')<collect.indexOf('auto root=folderPath()'),'invalid dates rejected before folder mutation');
 assert(collect.includes('result["failed"]')&&collect.includes('result["unavailable"]'),'partial saves are disclosed');
 assert(cpp.includes('app.busy=false;taskControls(false);throw;'),'thread launch failure restores controls');
-assert(cpp.includes('app.control->stopped=true;app.control->paused=false;EnableWindow(GetDlgItem(w,ID_PAUSE),FALSE)'),'close cancels pause and prevents re-pausing');
-assert(cpp.includes('if(!app.closing&&(r->message.size()>250||r->error))'),'close is not blocked by completion modal');
+assert(cpp.includes('app.control->stopped=true;app.control->paused=false;app.preserveControl->stopped=true;app.preserveControl->paused=false;EnableWindow(GetDlgItem(w,ID_PAUSE),FALSE)'),'close cancels and unpauses capture and reader preservation');
+assert(cpp.includes('SetWindowTextW(app.taskNote,wide(result->message).c_str())')&&cpp.includes('else DestroyWindow(w);return 0;}case WM_CTLCOLORSTATIC'),'completion persists in the workspace and closing is not blocked by a modal');
 const connect=cpp.slice(cpp.indexOf('startTask([profile]'),cpp.indexOf('if(id==ID_DEMO)'));
 assert(!connect.includes('app.source='),'worker never publishes source directly');
 assert(connect.indexOf('auto chats=source->chatsWithControl(*app.control)')<connect.indexOf('std::make_unique<ConnectionResult>'),'failed chat enumeration cannot publish a partial connection');
@@ -20,7 +20,7 @@ const reportRefresh=cpp.slice(cpp.indexOf('void refreshProbeReport('),cpp.indexO
 assert(reportRefresh.indexOf('app.report=J();')<reportRefresh.indexOf('auto result=inspect(app.control.get());'),'retry invalidates previous report before inspection');
 assert(reportRefresh.includes('auto result=inspect(app.control.get());app.control->check();app.report=std::move(result);'),'cancelled result is not published as a completed report');
 assert(cpp.includes('if(id==ID_PROBE){app.report=J();startTask('),'UI invalidates old report before thread creation can fail');
-assert(cpp.includes('既有收藏或人工範例。";},true);')&&cpp.includes('完整採集仍待實機驗證。";},true);'),'both probe tasks enable stop');
+assert(cpp.includes('既有聊天紀錄或人工範例。";},true);')&&cpp.includes('完整採集仍待實機驗證。";},true);'),'both probe tasks enable stop');
 assert(connect.includes('app.control->check();'),'closing during enumeration discards the completed connection');
 assert(connect.includes('pending.get())))throw Error(')&&connect.includes('pending.release();'),'failed posting retains RAII ownership; successful posting transfers it');
 const receive=cpp.slice(cpp.indexOf('case MSG_CHATS:'),cpp.indexOf('case MSG_DONE:'));
@@ -61,9 +61,9 @@ assert(!picker.includes('atomicText')&&!picker.includes('rememberArchive'),'fold
 const opened=cpp.slice(cpp.indexOf('OpenedArchive openRememberedArchive'),cpp.indexOf('fs::path chooseFolder'));
 assert(opened.indexOf('std::make_unique<Store>')<opened.indexOf('remember(root)'),'only successfully opened collections become saved preference');
 assert(cpp.includes('store.history(100,offset)')&&cpp.includes('deleteHistoryAndRefresh(*store,jobId'),'history uses bounded backend APIs');
-assert(cpp.includes('不會刪除對話、附件或附件沿用資料')&&cpp.includes('row.value("status","")=="running"'),'history deletion disclosure and running guard exist');
+assert(cpp.includes('不會刪除對話、檔案或檔案沿用資料')&&cpp.includes('row.value("status","")=="running"'),'history deletion disclosure and running guard exist');
 assert(cpp.includes('app.source->accountFor(chat)==row.value("account","")')&&cpp.includes('auto stored=app.source->storageChat(chat)')&&cpp.includes('未變更整理設定'),'history cannot apply another account');
-assert(cpp.includes('"skip_text"')&&cpp.includes('仍讀取附件所需的識別與關聯'),'skip text has explicit metadata disclosure');
+assert(cpp.includes('"skip_text"')&&cpp.includes('仍會讀取檔案所需的識別與關聯'),'skip text has explicit metadata disclosure');
 assert(cpp.includes('if(!confirmDelete())return;'),'history deletion can be cancelled before any Store opening');
 assert(cpp.includes('archiveSchemaVersion(root)!=1')&&cpp.includes('if(!confirm())return std::nullopt;'),'legacy archive upgrade requires consent');
 assert(cpp.includes('ID_HISTORY_PREV')&&cpp.includes('ID_HISTORY_NEXT')&&cpp.includes('store.historyCount()'),'all retained history is reachable through paging');
@@ -74,10 +74,22 @@ assert(cpp.includes('私人資料庫暫存副本未能清除，仍保留在：')
 assert(opened.includes('catch(...){opened.preferenceWarning=')&&cpp.includes('return storeNotice(*opened)+opened.preferenceWarning'),'preference failure remains a GUI notice, preserving upgrade notice');
 assert(cpp.includes('store.deleteHistory(jobId);std::string message=')&&cpp.includes('try{refresh();}catch(...)'),'history deletion commits before separately handled refresh');
 
-assert.equal((cpp.match(/exportHtml\(s,\[&\]\{app.control->check\(\);\},&readerWarning\)/g)||[]).length,4,'collect, demo, rebuild and media fill consume reader publication warnings');
+assert.equal((cpp.match(/exportHtml\(s,\[&\]\{app.control->check\(\);\},&readerWarning(?:,false)?\)/g)||[]).length,4,'collect, demo, rebuild and media fill consume reader publication warnings');
 assert(cpp.includes('if(!imported.warning.empty())message+="\\n"+imported.warning;'),'published import exposes reader cleanup warning');
 assert.equal((cpp.match(/return storeNotice\(store\)\+readerWarning\+/g)||[]).length,5,'GUI reader warnings reach success text in collect, demo, rebuild, backup and media fill');
 assert(main.includes('exportHtml(store,{},&warning)')&&main.includes('warning.data(),static_cast<DWORD>(warning.size())'),'EXE --demo reports successful-export cleanup warning on stderr');
 assert.equal((cpp.match(/readerWarning\+=openPublishedReader\(page,\*app.control\)/g)||[]).length,4,'all browser-opening export branches honor postpublication Stop');
 assert(cpp.includes('if(!control.stopped.load()){open(page);return {};}')&&cpp.includes('已依停止要求略過自動開啟：'),'stopped published reader preserves location without launching browser');
 console.log('Native application flow contracts passed; interactive Windows/LINE validation remains separate.');
+
+const preservation=cpp.slice(cpp.indexOf('std::string preserveStoppedCapture('),cpp.indexOf('void collectClicked('));
+assert(preservation.includes('exportHtml(store,tick,&warning,false)')&&preservation.includes('app.preserveControl->check()'),'Stop builds a cancellable direct-file reader snapshot without generating full download parts');
+assert(!preservation.includes('stopped=false')&&!preservation.includes('app.control->check()'),'preservation never resets or reuses the stopped capture control');
+assert(cpp.includes('app.preserving.load()?app.preserveControl:app.control'),'Stop and Pause target the current preservation phase');
+assert.equal((cpp.match(/catch\(const Cancelled&\)\{return preserveStoppedCapture\(/g)||[]).length,2,'both manual and automatic capture preserve a readable partial result after Stop');
+const chatReceive=cpp.slice(cpp.indexOf('case MSG_CHATS:'),cpp.indexOf('case MSG_HISTORY:'));
+assert(chatReceive.includes('app.checked.clear()')&&!chatReceive.includes('app.checked.insert'),'publishing a source never silently selects the processed chats');
+assert(chatReceive.includes('if(!c->preserveOptions)'),'automatic source publication retains explicitly selected date and text options');
+assert(cpp.includes('postCaptureProgress);')&&cpp.includes('case MSG_PROGRESS:')&&cpp.includes('case MSG_FILE_REPORT:'),'capture connects typed per-file progress and saved-file result rows');
+assert(cpp.includes('captureReport(store,50,offset,state,query,tick,verifyContents)'),'saved-file inspection uses bounded, filtered, cancellable backend reporting');
+for(const id of ['ID_CHAT_TYPE','ID_CHAT_SOURCE','ID_CHAT_PAGE_SIZE','ID_SELECT_PAGE','ID_CLEAR_PAGE','ID_SELECT_FILTERED','ID_CLEAR_ALL'])assert(cpp.includes(id),'chat selection has filters, pages and explicit clear actions');

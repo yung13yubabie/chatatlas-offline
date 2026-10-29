@@ -138,3 +138,10 @@ build/text-export-test: $(OBJ) tests/text_export_test.cpp
 test: test-text-export
 test-text-export: build/text-export-test
 	@d=$$(mktemp -d) || exit 1; ./build/text-export-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+build/name-retention-test: $(OBJ) tests/name_retention_test.cpp
+	$(CXX) $(CXXFLAGS) tests/name_retention_test.cpp $(OBJ) -ldl -o $@
+.PHONY: test-name-retention
+test: test-name-retention
+test-name-retention: build/name-retention-test
+	@d=$$(mktemp -d) || exit 1; ./build/name-retention-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status

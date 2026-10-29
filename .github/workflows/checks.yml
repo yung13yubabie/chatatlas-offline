@@ -87,4 +87,14 @@ jobs:
       - run: node native/tests/no_install_contract.cjs native/out/ChatAtlas.exe
       - name: No developer tools runtime smoke test
         shell: powershell
+        env:
+          ATLAS_QA: ${{ runner.temp }}/chatatlas-native-ui
         run: ./native/tests/no_install_runtime.ps1 -Exe native/out/ChatAtlas.exe
+      - name: Upload actual native workspace evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ChatAtlas-source-native-window
+          path: ${{ runner.temp }}/chatatlas-native-ui/*.png
+          if-no-files-found: warn
+          retention-days: 14

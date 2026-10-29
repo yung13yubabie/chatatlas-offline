@@ -24,7 +24,7 @@ LineBatchSource::LineBatchSource(std::vector<std::shared_ptr<Source>> selected,C
   auto original=source->chatsWithControl(control);if(!original.is_array())throw CapabilityError("批次來源聊天室清單格式不正確。");
   originals.push_back(original);std::string filename;
   if(auto database=std::dynamic_pointer_cast<LineDatabaseSource>(source))filename=utf8(database->databasePath().filename());
-  const auto label="來源 "+std::to_string(index+1)+(filename.empty()?std::string():" · "+filename);
+  const auto label="來源 "+std::to_string(index+1);
   for(const auto& chat:original){
    control.check();validateChat(chat);auto visible=chat;auto id=text(chat,"source_id");
    visible["source_id"]=key({"line-batch-chat",source->account,id});

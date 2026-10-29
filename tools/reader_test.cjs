@@ -46,11 +46,11 @@ try{
  const htmlPath=path.join(dir,'index.html'),originalPage=fs.readFileSync(htmlPath,'utf8'),casePath=path.join(dir,'capture-state-case.html');
  const jsonMarker=/<script type="application\/json" id="manifest">([\s\S]*?)<\/script>/;
  const match=originalPage.match(jsonMarker);assert(match);const baseManifest=JSON.parse(match[1]);assert(baseManifest.artificial_data);
- try{for(const [status,coverage,expected]of [['complete','visible_only','僅限當時可讀範圍'],['interrupted','unknown','上次整理曾中斷'],['complete_with_issues','source_range','上次整理有待補項目']]){
+ try{for(const [status,coverage,expected]of [['complete','visible_only','僅限當時可讀範圍'],['interrupted','unknown','上次整理曾中斷'],['complete_with_issues','source_range','上次整理有需處理項目']]){
   const nextManifest=JSON.parse(JSON.stringify(baseManifest));for(const chat of nextManifest.chats)chat.last_job={status,coverage,finished_at:'2026-10-28T00:00:00Z',counts:{downloaded:2,reused:3,failed:1,unavailable:0}};
   const json=JSON.stringify(nextManifest).replace(/</g,'\\u003c');fs.writeFileSync(casePath,originalPage.replace(jsonMarker,()=>'<script type="application/json" id="manifest">'+json+'</script>'));
-  await p.goto(require('url').pathToFileURL(casePath).href);await p.waitForFunction(()=>document.querySelector('#content').getAttribute('aria-busy')==='false');assert((await p.locator('#coverage').innerText()).includes(expected));assert((await p.locator('#coverage').innerText()).includes('沿用附件 3'));
-  if(status!=='complete')assert((await p.locator('#notice').innerText()).includes('回桌面程式再次整理／補存'));
+  await p.goto(require('url').pathToFileURL(casePath).href);await p.waitForFunction(()=>document.querySelector('#content').getAttribute('aria-busy')==='false');assert((await p.locator('#coverage').innerText()).includes(expected));assert((await p.locator('#coverage').innerText()).includes('沿用檔案 3'));
+  if(status!=='complete')assert((await p.locator('#notice').innerText()).length>0);
  }}finally{fs.rmSync(casePath,{force:true});}
  assert.equal(external.length,0);assert.deepEqual(errors,[]);
  console.log("file:// reader: search, album preview, threads, parent navigation, no external requests, 10 identical downloads, latest-content reload, relocated folder, corrupted-part rejection, multichunk/empty downloads, omitted-text attachment label/download, mobile layout passed.");

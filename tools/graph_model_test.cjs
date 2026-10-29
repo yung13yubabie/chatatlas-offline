@@ -11,4 +11,13 @@ const person=g.nodes.find(n=>n.type==='person');assert.equal(g.edges.filter(e=>e
 const recalled=item('old','a','secret keyword secret keyword',{state:'recalled'});g=build([recalled],rooms.slice(0,1));assert(!g.nodes.some(n=>n.type==='topic'),'recalled words are not indexed');
 const manyRooms=Array.from({length:35},(_,i)=>({id:String(i),title:'Room '+i})),manyRows=manyRooms.flatMap(c=>Array.from({length:100},(_,i)=>item(c.id+'-'+i,c.id,'#同一標籤 '+i,{sender_name:'Member '+i,attachments:[{id:c.id+'-file-'+i,name:'Example '+i}]})));
 g=build(manyRows,manyRooms);assert(g.nodes.length<=120,'bounded visible map');assert(g.limited);for(const n of g.nodes)if(n.type!=='chat')assert(g.edges.some(e=>e.source===n.id||e.target===n.id),'capped map has no orphan node');
-console.log('graph model: evidence links, same-name isolation, confirmed cross-room people, recalled-word exclusion, bounded graph and no dangling edges passed.');
+const presentation=context.window.VaultGraphModel.presentation,mid='u'+'a'.repeat(32),sourceId='637997123456789012';
+assert.equal(presentation.displayName(mid),'名稱待確認');assert.equal(presentation.displayName('阿鳳'),'阿鳳');
+assert.equal(presentation.displayName(mid,'名稱待確認',true),mid,'An explicitly confirmed display name is preserved');
+const attachment={id:'saved-image',name:'image-'+sourceId+'.bin',kind:'image',path:'assets/aa/'+'a'.repeat(64)+'.png'},message=item('saved','a','完整訊息',{source_id:sourceId,sender_name:mid,sender_ref:'stable-unresolved-identity',sent_at:'2026-10-25T01:10:11Z',attachments:[attachment]});
+assert.equal(presentation.fileName(attachment,message),'圖片_2026-10-25_09-10-11_01.png','Old generated names use the real local extension and message time');
+assert.equal(presentation.fileName({...attachment,name:'image-99999999999999999999.png'},message),'image-99999999999999999999.png','Unrelated original numeric filenames are never guessed away');
+assert.equal(presentation.fileName({...attachment,name_is_original:true},message),attachment.name,'An identified original filename is retained');
+assert.equal(context.window.VaultGraphModel.label(item('system','a','[LINE 類型 18]')),'系統訊息','Legacy unreadable system placeholders are human labels in the map');
+g=build([message],[{id:'a',title:mid}]);assert.equal(g.nodes.find(n=>n.type==='person').title,'名稱待確認');assert.equal(g.nodes.find(n=>n.type==='person').id,'person:stable-unresolved-identity','Friendly labels do not merge distinct identities');assert(!g.nodes.some(n=>n.title===mid));assert.equal(g.nodes.find(n=>n.type==='file').title,'圖片_2026-10-25_09-10-11_01.png');
+console.log('graph model: evidence links, stable identities, recalled-word exclusion, bounded graph, friendly unresolved names and precise original/generated filenames passed.');

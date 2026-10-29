@@ -12,6 +12,9 @@ std::array<unsigned char,76> deriveLineMediaKeys(const std::string& keyMaterialB
 void decryptLineMediaFile(const fs::path& ciphertext,const fs::path& destination,const std::string& keyMaterialBase64,Control&,bool video=false);
 std::string lineMediaTalkMeta(const std::string& messageId);
 std::string lineMediaObjectUrl(const std::string& service,const std::string& messageId,bool preview=false);
+// Fixed explanations derived only from a numeric response status, never a URL,
+// login value, response body or other private text.
+std::string lineMediaFailureReason(unsigned status);
 class LineMediaResolver {
  struct Binding { fs::path file; std::string url; J descriptor; std::string keyMaterial; bool privateResource=false; std::string messageId; };
  fs::path database,root;
@@ -21,6 +24,7 @@ class LineMediaResolver {
  std::map<std::string,std::string> chatServices;
  std::map<std::string,fs::path> selected;
  std::map<std::string,Binding> downloads;
+ std::map<std::string,std::map<std::string,size_t>> filenameSlots;
  public:
  explicit LineMediaResolver(const fs::path& selectedDatabase,const fs::path& mediaRoot={});
  ~LineMediaResolver();

@@ -19,7 +19,10 @@ class LineDatabaseSource final : public Source {
  std::map<std::string,std::set<std::string>> tables;
  std::map<std::string,std::string> attachmentChats;
  std::map<std::string,std::string> chatServices;
+ std::map<std::string,size_t> unknownSenderNumbers;
  bool hasTable(const std::string&) const;
+ bool hasColumn(const std::string&,const std::string&) const;
+ J nameRows(const std::string&,const std::string&,const std::vector<std::string>&,Control&);
  void verifyIdentity() const;
  void inspectSchema(Control&);
  void loadChats(Control&);

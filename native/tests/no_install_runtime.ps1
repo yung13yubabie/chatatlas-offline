@@ -154,7 +154,49 @@ public static class AtlasSmokeWindow {
     Write-Output ('Captured actual ChatAtlas HWND: '+$FileName+'; '+$width+'x'+$height+'; artificial data only.')
    } finally { $graphics.Dispose(); $bitmap.Dispose() }
    }
+   function Show-OwnedPage([int]$Page) {
+    $tabs=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,100)
+    [uint32]$tabsOwner=0
+    [void][AtlasSmokeWindow]::GetWindowThreadProcessId($tabs,[ref]$tabsOwner)
+    if ($tabs -eq [IntPtr]::Zero -or $tabsOwner -ne $p.Id -or [AtlasSmokeWindow]::ControlMessage($tabs,0x1304,0,0) -le $Page) { throw 'Requested workspace page is missing or belongs to another process' }
+    [void][AtlasSmokeWindow]::ControlMessage($tabs,0x1330,$Page,0)
+    if ([AtlasSmokeWindow]::ControlMessage($tabs,0x130B,0,0) -ne $Page) { throw 'Workspace page did not activate' }
+    [void][AtlasSmokeWindow]::RedrawWindow($p.MainWindowHandle,[IntPtr]::Zero,[IntPtr]::Zero,0x0185)
+   }
+   function Read-OwnedList([int]$ListId,[int]$RefreshId,[string]$Context) {
+    $list=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,$ListId)
+    $refresh=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,$RefreshId)
+    foreach($control in @($list,$refresh)) {
+     [uint32]$controlOwner=0
+     [void][AtlasSmokeWindow]::GetWindowThreadProcessId($control,[ref]$controlOwner)
+     if ($control -eq [IntPtr]::Zero -or $controlOwner -ne $p.Id -or ![AtlasSmokeWindow]::IsWindowVisible($control)) { throw ($Context+' control ownership or visibility mismatch') }
+    }
+    if (![AtlasSmokeWindow]::IsWindowEnabled($refresh)) { throw ($Context+' refresh is unavailable') }
+    [void][AtlasSmokeWindow]::ControlMessage($refresh,0x00F5,0,0)
+    $deadline=[DateTime]::UtcNow.AddSeconds(30);$rowCount=0
+    do {
+     $p.Refresh()
+     if ($p.HasExited) { throw ('Native GUI exited while reading '+$Context) }
+     $rowCount=[AtlasSmokeWindow]::ControlMessage($list,0x1004,0,0)
+     if ($rowCount -gt 0 -and [AtlasSmokeWindow]::IsWindowEnabled($refresh)) { break }
+     Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($rowCount -lt 1 -or ![AtlasSmokeWindow]::IsWindowEnabled($refresh)) { throw ('Artificial '+$Context+' did not populate before deadline') }
+    [void][AtlasSmokeWindow]::RedrawWindow($p.MainWindowHandle,[IntPtr]::Zero,[IntPtr]::Zero,0x0185)
+    return $rowCount
+   }
+   $workspaceFiles=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,149)
+   $modernWorkspace=$workspaceFiles -ne [IntPtr]::Zero
    Save-OwnedWindowCapture 'atlas-native-windows.png'
+   if ($modernWorkspace) {
+    Show-OwnedPage 4
+    foreach($id in @(120,121,123)) {
+     $setting=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,$id)
+     if ($setting -eq [IntPtr]::Zero -or ![AtlasSmokeWindow]::IsWindowVisible($setting)) { throw 'Preservation settings are not available on their own workspace page' }
+    }
+    Save-OwnedWindowCapture 'atlas-native-settings.png'
+    Show-OwnedPage 0
+   } else {
    # Exercise genuine scrolling on the owned application HWND. These captures
    # show actual controls after navigation; PrintWindow is not a screen-compositor
    # pixel oracle and does not replace interactive Windows painting validation.
@@ -170,11 +212,12 @@ public static class AtlasSmokeWindow {
    Save-OwnedWindowCapture 'atlas-native-scroll-middle.png'
    [void][AtlasSmokeWindow]::ControlMessage($p.MainWindowHandle,0x0115,6,0)
    Save-OwnedWindowCapture 'atlas-native-scroll-return.png'
+   }
    $collectionTabs=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,100)
    [void][AtlasSmokeWindow]::ControlMessage($collectionTabs,0x1330,1,0)
    $openData=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,132)
    if ($openData -eq [IntPtr]::Zero -or ![AtlasSmokeWindow]::IsWindowVisible($openData)) { throw 'Program data folder button is missing on collection tab' }
-   Save-OwnedWindowCapture 'atlas-native-collection.png'
+   if (!$modernWorkspace) { Save-OwnedWindowCapture 'atlas-native-collection.png' }
    [void][AtlasSmokeWindow]::ControlMessage($collectionTabs,0x1330,0,0)
    if ($portableMode) {
    # Use the real --demo archive through its actual relative path. No runner
@@ -182,6 +225,15 @@ public static class AtlasSmokeWindow {
    if ([IO.Path]::GetFullPath((Join-Path $bin '..\archive')) -ine [IO.Path]::GetFullPath($archive)) { throw 'Synthetic archive relative path mismatch' }
    if ([AtlasSmokeWindow]::SetControlText($folder,0x000C,[IntPtr]::Zero,'..\archive') -eq [IntPtr]::Zero) { throw 'Could not select artificial archive' }
    $tabs=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,100)
+   if ($modernWorkspace) {
+    Show-OwnedPage 1
+    $files=Read-OwnedList 149 179 'saved file results'
+    [void]$visible.Clear()
+    [void][AtlasSmokeWindow]::ReadControlText($folder,0x000D,[IntPtr]$visible.Capacity,$visible)
+    if ($visible.ToString() -cne '..\archive') { throw 'Saved-file result refresh changed the selected artificial path' }
+    Save-OwnedWindowCapture 'atlas-native-results.png'
+    Write-Output ('Real packaged EXE file-results page loaded '+$files+' artificial file records.')
+   }
    $history=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,124)
    $refresh=[AtlasSmokeWindow]::GetDlgItem($p.MainWindowHandle,125)
    foreach($control in @($tabs,$history,$refresh)) {

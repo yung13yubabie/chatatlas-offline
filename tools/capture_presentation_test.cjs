@@ -7,13 +7,13 @@ const scope={date:()=> '人工時間',Date,Number,Set};vm.runInNewContext(source
 const one=(status,coverage,counts={})=>scope.describe([{last_job:{status,coverage,counts,finished_at:'2026-10-28T00:00:00Z'}}]);
 assert.match(one('complete','visible_only'),/僅限當時可讀範圍/);
 assert.match(one('interrupted','unknown'),/曾中斷.*來源範圍尚未確認/);
-assert.match(one('complete_with_issues','source_range',{downloaded:2,reused:4,failed:1,unavailable:3}),/待補.*不代表完整歷史.*新增附件 2.*沿用附件 4.*待重試 1.*來源無法提供 3/);
-assert.match(scope.describe([{}]),/尚無採集紀錄/);
-assert.match(scope.describe([{last_job:{status:'complete',coverage:'local_only'}},{last_job:{status:'failed',coverage:'unknown'}}]),/2 個聊天室.*1 個尚未完成或有待補項目.*1 個來源範圍未確認/);
-assert(!one('complete','unknown',{downloaded:-1,reused:'4'}).includes('新增附件'));
+assert.match(one('complete_with_issues','source_range',{downloaded:2,reused:4,failed:1,unavailable:3}),/需處理.*不代表完整歷史.*新增檔案 2.*沿用檔案 4.*待重試 1.*未取得 3/);
+assert.match(scope.describe([{}]),/尚無整理紀錄/);
+assert.match(scope.describe([{last_job:{status:'complete',coverage:'local_only'}},{last_job:{status:'failed',coverage:'unknown'}}]),/2 個聊天室.*1 個尚未完成或有需處理項目.*1 個來源範圍未確認/);
+assert(!one('complete','unknown',{downloaded:-1,reused:'4'}).includes('新增檔案'));
 assert.equal(scope.reason({status:'saved',reason:'hidden'}),'');
 assert.equal(scope.reason({status:'failed',reason:'來源暫時無法提供'}),'來源暫時無法提供');
-assert.match(scope.reason({status:'unavailable'}),/來源目前無法提供/);
+assert.match(scope.reason({status:'unavailable'}),/此次未取得原檔/);
 assert.equal(scope.reason({status:'failed',reason:'x'.repeat(1000)}).length,300);
 assert(source.includes("i.content_omitted===true?'未保存對話文字'"));
 assert(!/\.innerHTML\s*=|\beval\s*\(/.test(source));
