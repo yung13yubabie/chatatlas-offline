@@ -2,29 +2,34 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.8｜Windows x64 原生 LINE 資料庫預覽版**
+**0.3.1-alpha.9｜Windows x64 原生 LINE 資料庫預覽版（待發布驗證）**
 
-> alpha.8 已於 2026-10-29 發布為 Windows 預覽版。下方 EXE、ZIP 與校驗檔均來自通過驗收的同一輪 CI。
+> alpha.9 正在進行發布驗證；下方 alpha.9 下載連結需等 Release 實際發布後才可用。目前已發布版本仍為 [alpha.8](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8)，它尚未包含新的資料庫尋找介面。
 
-[Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/SHA256SUMS.txt) · [alpha.8 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8)
+[Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/ChatAtlas-0.3.1-alpha.9-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/ChatAtlas-0.3.1-alpha.9-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/ChatAtlas-0.3.1-alpha.9-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/SHA256SUMS.txt) · [alpha.9 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.9)
 
 > **真實 LINE 帳號與媒體相容性仍需實機驗證。**
 > 本版直接讀取本機資料庫並嘗試自動取得附件；原生來源不需版面設定。人工資料測試與 CI 不能證明每個帳號、每個附件或全部歷史都能保存。
 
-## alpha.8：直接讀取 LINE 本機資料庫
+## alpha.9：尋找並連接 LINE
 
-alpha.8 在原生 EXE 內加入 LINE 本機資料庫來源。保持 Windows LINE 登入，在聊藏按「連接 LINE 本機資料庫」選取自己的 `.edb`，即可列出聊天室，再使用既有收藏、搜尋與離線地圖流程。這條路徑不需 LINE 版面設定，也不需執行 Python、匯出 JSON 或另裝執行套件；所需解密程式碼已編入 EXE。
+保持 Windows LINE 登入，在首頁按「尋找並連接 LINE」。程式會列出常見 LINE 資料夾裡的 `.edb` 候選，顯示完整路徑；只有一筆也要先確認，多筆時由你選擇，不會自動挑最大的檔案。找不到時可改用手動選擇，檔案選擇器會優先開啟常見 LINE 位置。
+
+連線後勾選聊天室，確認「收藏保存位置」再開始整理。**LINE 來源資料庫是程式要讀取的檔案；收藏保存位置是聊藏輸出聊天與附件的資料夾，兩者不同。** 不需要先建立 `.db` 檔案，也不要把來源 `.edb` 填進收藏保存位置。
+
+原生資料庫與附件功能由 alpha.8 引入，alpha.9 改善尋找來源與首頁操作指引。使用時仍不需 LINE 版面設定、Python、JSON 匯出或另裝執行套件。
 
 圖片與附件使用資料庫內的訊息識別，以及同一個已核對 LINE 程序中實際讀到的登入工作階段，經原生 LINE OBS API 嘗試取回；成功後保存原始位元組、雜湊與離線預覽。**只在 LINE 裡看得到、尚未另存的圖片，目前仍不能保證取得**：缺少可辨識的工作階段或媒體金鑰、授權失效，或附件已過期時會列為未取得，不把縮圖當成完整原圖。另有可選的手動補入原檔功能；目前不另外下載對話歷史、相簿或記事本。操作步驟與格式限制見 [LINE 本機資料庫說明](docs/LINE_DATABASE_IMPORT.md)。
 
-此功能由 alpha.8 提供，既有 alpha.7 Release、tag 與 ZIP 保持不變。本次原生建置、來源證明與實際封裝 EXE 測試已通過，核對紀錄見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。
+alpha.9 的發布驗證狀態見 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)。已發布的 alpha.8 與更早版本不覆寫，其既有驗證保留於 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。
 
 ## 下載後怎麼開
 
-1. 下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
+1. alpha.9 發布後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
 2. 雙擊 `ChatAtlas.exe`。不需安裝 Python、Node.js，也不要求另裝 .NET。
-3. 想先試介面，點「查看人工範例」；或直接用瀏覽器開啟包內的 `人工範例/index.html`。
-4. 請保留 HTML 旁邊的資料夾，圖片、內容與另存檔案功能會用到它們。
+3. 要讀取自己的 LINE，先登入 Windows LINE，再按首頁「尋找並連接 LINE」，確認候選來源。
+4. 聊天室列出後，勾選要保存的內容，確認下方「收藏保存位置」，再按「開始整理與更新」。
+5. 想先試介面可按「查看人工範例」，或開啟包內的 `人工範例/index.html`。請保留 HTML 旁的資料夾。
 
 也可下載單一 EXE，放到可寫入的一般本機私人資料夾後開啟；完整第三方授權告示已內嵌。ZIP 另附人工範例與授權文件。
 
@@ -55,7 +60,11 @@ alpha.8 在原生 EXE 內加入 LINE 本機資料庫來源。保持 Windows LINE
 
 「可攜」指應用程式自己的資料位置，不代表電腦完全不留痕跡。Windows、瀏覽器、防毒及底層元件的暫存或診斷可能留下各自的紀錄，聊藏不會停用或清除它們。
 
-## alpha.8 驗證與發布
+## alpha.9 驗證與發布
+
+本輪新增常見位置的資料庫候選清單、手動選擇預設位置，以及首頁操作與來源／保存位置指引。最終來源檢查、Windows UI、建置來源證明與實際封裝 EXE 測試仍待本次 CI 確認，不能沿用 alpha.8 的 EXE 或校驗值。進度見 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)。
+
+## alpha.8 已發布驗證
 
 alpha.8 發行來源固定為主線合併提交 [`89485b19`](https://github.com/yung13yubabie/chatatlas-offline/commit/89485b19d0de2398c179ba323e810c6031380b41)。[Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414962) 的 Linux、Windows 與瀏覽器工作，以及[發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40838414912) 的四個工作皆已通過，包含實際封裝 EXE 的 Windows 啟動、關閉及可攜測試。
 
@@ -66,7 +75,7 @@ Release 只使用該輪 CI 的五個原始產物，發布後已從公開下載�
 <details>
 <summary>alpha.7 與更早版本的畫面及發布紀錄</summary>
 
-以下保留 alpha.7 發布時的畫面、來源與驗證紀錄，不代表 alpha.8 的新按鈕或原生資料庫實機結果。
+以下保留 alpha.7 發布時的畫面、來源與驗證紀錄，不代表 alpha.8／alpha.9 的新按鈕或原生資料庫實機結果。
 
 ## 畫面預覽
 
@@ -225,11 +234,11 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。CI、原生建置與測試使用 C／C++、Node.js 及 PowerShell，不執行 Python。資料庫測試使用人工加密來源，不讀取真實 LINE。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)。CI、原生建置與測試使用 C／C++、Node.js 及 PowerShell，不執行 Python。資料庫測試使用人工加密來源，不讀取真實 LINE。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
-alpha.1 至 alpha.7 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
+alpha.1 至 alpha.8 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
 
 </details>
 

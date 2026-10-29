@@ -4,8 +4,8 @@ LANGUAGE LANG_CHINESE,SUBLANG_CHINESE_TRADITIONAL
 2 RCDATA "out/THIRD_PARTY_NOTICES.txt"
 1 RT_MANIFEST "app.manifest"
 1 VERSIONINFO
- FILEVERSION 0,3,1,8
- PRODUCTVERSION 0,3,1,8
+ FILEVERSION 0,3,1,9
+ PRODUCTVERSION 0,3,1,9
  FILEOS VOS_NT_WINDOWS32
  FILETYPE VFT_APP
 BEGIN
@@ -19,7 +19,7 @@ BEGIN
    VALUE "InternalName", "ChatAtlas\0"
    VALUE "OriginalFilename", "ChatAtlas.exe\0"
    VALUE "ProductName", "ChatAtlas\0"
-   VALUE "ProductVersion", "0.3.1-alpha.8\0"
+   VALUE "ProductVersion", "0.3.1-alpha.9\0"
   END
  END
  BLOCK "VarFileInfo"

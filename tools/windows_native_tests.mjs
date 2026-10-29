@@ -21,12 +21,15 @@ run(['tests/bridge_timing_test.cpp','-o','build/bridge-timing-test.exe']);
 execFileSync(path.join(ROOT,'native/build/bridge-timing-test.exe'),[],{stdio:'inherit'});
 run(['tests/request_control_test.cpp','-o','build/request-control-test.exe']);
 execFileSync(path.join(ROOT,'native/build/request-control-test.exe'),[],{stdio:'inherit'});
-const sources=['platform','database','store','archive','zip','demo','bundle','import','line_cipher','line_process','line_database','line_media','line_obs'].map(x=>'src/'+x+'.cpp');
+const sources=['platform','database','store','archive','zip','demo','bundle','import','line_cipher','line_process','line_database','line_media','line_obs','line_locations'].map(x=>'src/'+x+'.cpp');
 // Compile identical common inputs once per runner; preserve flags across all tests.
 const objectRoot='build/windows-common';fs.mkdirSync(path.join(ROOT,'native',objectRoot),{recursive:true});
 const objects=new Map();for(const source of sources){const object=objectRoot+'/'+path.basename(source,'.cpp')+'.o';run(['-c',source,'-o',object]);objects.set(source,object);}
 const common=[...objects.values(),engineObject];
 const object=name=>objects.get('src/'+name+'.cpp');
+run([object('platform'),object('line_locations'),'tests/line_locations_test.cpp','-ladvapi32','-o','build/line-locations-test.exe']);
+const locationsFixture=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-line-locations-'));
+try{execFileSync(path.join(ROOT,'native/build/line-locations-test.exe'),[locationsFixture],{stdio:'inherit'});}finally{fs.rmSync(locationsFixture,{recursive:true,force:true});}
 run([...common,'tests/time_contract_test.cpp','-ladvapi32','-o','build/time-contract-test.exe']);
 execFileSync(path.join(ROOT,'native/build/time-contract-test.exe'),[],{stdio:'inherit'});
 run([object('platform'),'tests/windows_private_path_test.cpp','-ladvapi32','-o','build/windows-private-path-test.exe']);

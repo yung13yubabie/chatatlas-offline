@@ -1,6 +1,6 @@
 CXX ?= g++
 CXXFLAGS = -std=c++20 -O0 -g -DJSON_DIAGNOSTICS=1 -Isrc -Iinclude -Ivendor -I../.toolchains/sqlite3mc-2.6.1
-SRC = platform database store archive zip demo bundle import line_cipher line_process line_media line_database line_obs
+SRC = platform database store archive zip demo bundle import line_cipher line_process line_media line_database line_obs line_locations
 OBJ = $(addprefix build/,$(addsuffix .o,$(SRC))) build/line_cipher_engine.o
 all: build/core-test
 build/%.o: src/%.cpp $(wildcard src/*.hpp) | build/line_cipher_engine.o
@@ -117,3 +117,10 @@ build/line-obs-test: $(OBJ) tests/line_obs_test.cpp
 test: test-line-obs
 test-line-obs: build/line-obs-test
 	./build/line-obs-test
+
+build/line-locations-test: build/platform.o build/line_locations.o tests/line_locations_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_locations_test.cpp build/platform.o build/line_locations.o -o $@
+.PHONY: test-line-locations
+test: test-line-locations
+test-line-locations: build/line-locations-test
+	@d=$$(mktemp -d) || exit 1; ./build/line-locations-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status

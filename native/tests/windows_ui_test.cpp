@@ -9,6 +9,59 @@ namespace {
 int checks=0;
 void requireUi(bool condition,const char* message){++checks;if(!condition)throw std::runtime_error(message);}
 void fontHeight(HWND control,int expected){auto font=reinterpret_cast<HFONT>(SendMessageW(control,WM_GETFONT,0,0));LOGFONTW value{};requireUi(font&&GetObjectW(font,sizeof(value),&value)==sizeof(value),"control font exists");requireUi(value.lfHeight==-expected,"font follows DPI");}
+void databasePickerUiChecks(){
+ auto root=privateDir(app.config/L"DatabasePickerFixture");
+ const auto first=root/L"naver_line_first.edb",second=root/L"naver_line_second.edb",manual=root/L"manually_selected.edb";
+ for(const auto& path:{first,second,manual}){ExclusiveFile file(path);file.write("synthetic UI-only candidate; not a LINE database");file.sync();}
+ const auto firstHash=digest(first).hash,secondHash=digest(second).hash;
+ auto candidate=[](const fs::path& path){LineDatabaseCandidate value;value.path=path;value.size=46;return value;};
+ auto makeLocations=[&](std::initializer_list<fs::path> paths){LineDatabaseLocations value;value.defaultDirectory=root;for(const auto& path:paths)value.candidates.push_back(candidate(path));return value;};
+ {
+  LineDatabasePicker state;state.locations=makeLocations({});auto dialog=createLineDatabasePicker(state);
+  requireUi(dialog&&ListView_GetItemCount(state.list)==0&&state.selected.empty(),"empty database discovery has no invented selection");
+  requireUi(!IsWindowEnabled(state.connect)&&!state.done,"empty database picker cannot connect automatically");
+  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(!state.done&&state.result.empty(),"enter without a database cannot accept an empty source");
+  SendMessageW(dialog,WM_COMMAND,IDCANCEL,0);requireUi(state.done&&state.result.empty(),"empty picker cancels without returning a path");DestroyWindow(dialog);
+ }
+ {
+  LineDatabasePicker state;state.locations=makeLocations({first});auto dialog=createLineDatabasePicker(state);
+  requireUi(state.selected==first&&getText(state.path)==first.wstring()&&IsWindowEnabled(state.connect),"single discovered database is displayed in full and ready for confirmation");
+  requireUi(!state.done&&state.result.empty(),"single discovered database never connects without confirmation");
+  requireUi((GetWindowLongPtrW(state.path,GWL_STYLE)&ES_READONLY)!=0,"source path is copyable display rather than an editable output folder");
+  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(state.done&&state.result==first,"explicit confirmation returns the sole displayed database");DestroyWindow(dialog);
+ }
+ {
+  LineDatabasePicker state;state.locations=makeLocations({first,second});auto dialog=createLineDatabasePicker(state);
+  requireUi(ListView_GetItemCount(state.list)==2&&state.selected.empty()&&!IsWindowEnabled(state.connect),"multiple accounts require an explicit selection");
+  ListView_SetItemState(state.list,1,LVIS_SELECTED|LVIS_FOCUSED,LVIS_SELECTED|LVIS_FOCUSED);
+  requireUi(state.selected==second&&getText(state.path)==second.wstring()&&IsWindowEnabled(state.connect),"selecting the second real list row updates the full source path");
+  const auto selectedText=getText(state.path),summary=getText(state.summary);bool browsed=false;
+  state.browse=[&](const fs::path& initial){browsed=initial==root;return fs::path{};};
+  SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
+  requireUi(browsed&&state.selected==second&&getText(state.path)==selectedText&&getText(state.summary)==summary&&!state.done,"manual file cancellation preserves the chosen account and visible instructions");
+  state.browse=[&](const fs::path&){return root/L"archive.sqlite3";};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
+  requireUi(state.selected==second&&getText(state.path)==selectedText&&state.result.empty()&&!state.done,"collection SQLite file cannot replace the LINE source selection");
+  state.browse=[&](const fs::path&){return manual;};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
+  requireUi(state.selected==manual&&getText(state.path)==manual.wstring()&&ListView_GetNextItem(state.list,-1,LVNI_SELECTED)==-1,"manual source replaces the visible selection without leaving a different account highlighted");
+  requireUi(!state.done&&state.result.empty()&&IsWindowEnabled(state.connect),"manual selection still requires explicit connection confirmation");
+  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(state.done&&state.result==manual,"confirming manual selection returns that exact source path");DestroyWindow(dialog);
+ }
+ for(UINT message:{UINT(WM_COMMAND),UINT(WM_CLOSE)}){
+  LineDatabasePicker state;state.locations=makeLocations({first});auto dialog=createLineDatabasePicker(state);
+  SendMessageW(dialog,message,message==WM_COMMAND?WPARAM(IDCANCEL):WPARAM(0),0);
+  requireUi(state.done&&state.result.empty(),"cancel button and window close both discard the pending database choice");DestroyWindow(dialog);
+ }
+ const auto oldDpi=app.dpi;
+ for(UINT dpi:{96u,192u}){
+  app.dpi=dpi;rebuildFonts();LineDatabasePicker state;state.locations=makeLocations({first,second});auto dialog=createLineDatabasePicker(state);
+  RECT client{};GetClientRect(dialog,&client);std::vector<RECT> controlBounds;
+  for(int id:{ID_DB_PICK_LIST,ID_DB_PICK_PATH,ID_DB_PICK_BROWSE,IDOK,IDCANCEL}){RECT bounds{};auto control=GetDlgItem(dialog,id);requireUi(control&&GetWindowRect(control,&bounds),"database picker has a real source or action control");MapWindowPoints(nullptr,dialog,reinterpret_cast<POINT*>(&bounds),2);requireUi(bounds.left>=0&&bounds.top>=0&&bounds.right<=client.right&&bounds.bottom<=client.bottom&&bounds.right>bounds.left&&bounds.bottom>bounds.top,"database selection and actions remain inside the work-area-sized window");controlBounds.push_back(bounds);}
+  for(size_t i=0;i<controlBounds.size();++i)for(size_t j=i+1;j<controlBounds.size();++j){RECT overlap{};requireUi(!IntersectRect(&overlap,&controlBounds[i],&controlBounds[j]),"database list, path and action buttons never overlap one another");}
+  fontHeight(state.path,MulDiv(16,dpi,96));DestroyWindow(dialog);
+ }
+ app.dpi=oldDpi;rebuildFonts();
+ requireUi(digest(first).hash==firstHash&&digest(second).hash==secondHash,"showing and changing database candidates never modifies source bytes");
+}
 }
 int main(){try{
  initializeDpi();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
@@ -23,6 +76,7 @@ int main(){try{
   RECT button{};requireUi(GetWindowRect(GetDlgItem(window,ID_START),&button),"button bounds readable");requireUi(button.right-button.left==MulDiv(200,dpi,96),"button width follows DPI");requireUi(button.bottom-button.top==MulDiv(40,dpi,96),"button height follows DPI");
   RECT actual{};GetWindowRect(window,&actual);auto work=workArea(window);requireUi(actual.left>=work.left&&actual.top>=work.top&&actual.right<=work.right&&actual.bottom<=work.bottom,"window stays within work area");
  }
+ databasePickerUiChecks();
  SetWindowPos(window,nullptr,0,0,600,400,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);layout();SCROLLINFO info{sizeof(info),SIF_ALL};requireUi(GetScrollInfo(window,SB_VERT,&info)&&info.nMax>=819&&info.nPage<820,"small window has vertical scroll range");
  for(int cycle=0;cycle<4;cycle++){scrollView(false,SB_BOTTOM);scrollView(false,SB_TOP);requireUi(!app.layingOut,"scroll repaint exits layout guard");requireUi(GetUpdateRect(window,nullptr,FALSE)==0,"scroll batch redraw consumes parent invalidation");}
  scrollView(false,SB_BOTTOM);requireUi(app.scrollY>0,"scroll reaches lower controls");scrollView(false,SB_TOP);requireUi(app.scrollY==0,"scroll returns to top");
@@ -98,6 +152,10 @@ int main(){try{
  requireUi(SendMessageW(GetDlgItem(window,ID_MESSAGES),BM_GETCHECK,0,0)==BST_CHECKED&&!IsWindowEnabled(GetDlgItem(window,ID_ALBUMS))&&!IsWindowEnabled(GetDlgItem(window,ID_NOTES)),"native source enables messages and attachments while unsupported albums and notes stay disabled");
  requireUi(dateRange(ID_FROM,false).empty()&&dateRange(ID_UNTIL,true).empty(),"new native database clears previous source date selections");
  app.checked={"synthetic-chat"};drawChats();auto lineParent=privateDir(app.config/L"NativeImportParent");SetWindowTextW(app.folder,lineParent.c_str());bool askedLine=false;collectClicked([&](const fs::path& proposed){askedLine=proposed==lineParent/L"ChatAtlas-Collection";return false;});requireUi(askedLine&&!app.busy&&!fs::exists(lineParent/L"ChatAtlas-Collection"),"native collection cancellation creates no archive or background worker");
+ app.report=freshReport;auto connectedChats=app.chats;auto connectedChecked=app.checked;const auto connectedFolder=getText(app.folder);const auto connectedPreferences=readText(prefs);bool pickedDatabase=false;
+ lineDatabaseClicked([&]{pickedDatabase=true;return fs::path{};});
+ requireUi(pickedDatabase&&app.source==nativeSource&&app.chats==connectedChats&&app.checked==connectedChecked&&app.report==freshReport&&!app.busy,"cancelling a new database selection preserves the current source and connection report");
+ requireUi(getText(app.folder)==connectedFolder&&readText(prefs)==connectedPreferences,"cancelling a new database selection preserves collection location and preference bytes");
  activatePage(1);requireUi(IsWindowVisible(GetDlgItem(window,ID_MEDIA_IMPORT)),"original-file fill-in belongs to the collection page");taskControls(true);requireUi(!IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is disabled while collecting");taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is restored after a task");
  clearConnection();nativeSource.reset();taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_ALBUMS)),"disconnect restores other source content controls");
  auto originalConfig=app.config;requireUi(originalConfig.filename()==L"ChatAtlasData"&&originalConfig.parent_path()==executableDirectory(),"DPI changes preserve portable data location");
