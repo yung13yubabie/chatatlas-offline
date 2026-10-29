@@ -32,5 +32,5 @@ assert(cpp.includes('沒有設定時只檢查 LINE 版本，不會列出聊天�
 assert(cpp.includes('僅載入不代表已驗證'),'profile loading is not advertised as validated capture');
 
 assert(layout.includes('W=std::max(880,')&&layout.includes('H=std::max(680,'),'compact windows use a bounded scrolling fallback');
-assert(layout.includes('H-528')&&layout.includes('H-626'),'chat and file lists grow with the available client height');
+assert(layout.includes('H-528')&&layout.includes('std::max(148,H-532)'),'chat and file lists grow with the available client height');
 assert(cpp.includes('make(16,FW_NORMAL)')&&cpp.includes('make(14,FW_NORMAL)')&&cpp.includes('RGB(35,107,88)'),'native typography and primary action use the shared calm design tokens');

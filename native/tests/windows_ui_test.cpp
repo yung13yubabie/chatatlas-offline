@@ -118,6 +118,17 @@ void workspaceBoundsUiChecks(){
  for(int page=0;page<5;++page){activatePage(page);std::vector<RECT> bounds;for(const auto& [control,owner]:app.children){if(owner>=0&&owner!=page)continue;auto found=app.bases.find(control);if(found==app.bases.end())continue;auto b=found->second;if(b.right<=b.left||b.bottom<=b.top)continue;requireUi(b.left>=0&&b.top>=0&&b.right<=std::max(880L,LONG(app.bases[app.tabs].right+24)),"all workspace controls stay inside the logical scroll canvas");for(const auto& earlier:bounds){RECT overlap{};requireUi(!IntersectRect(&overlap,&b,&earlier),"visible header, list, settings and footer controls do not overlap");}bounds.push_back(b);}}
  activatePage(0);
 }
+void resultTableViewportUiChecks(HWND window){
+ auto previousDpi=app.dpi;RECT previousWindow{};GetWindowRect(window,&previousWindow);auto previousPage=app.page;auto previousReport=app.fileReport;auto previousProgress=app.showProgress;auto previousOffset=app.fileOffset;
+ RECT compact{0,0,1024,720};SendMessageW(window,WM_DPICHANGED,MAKEWPARAM(96,96),reinterpret_cast<LPARAM>(&compact));app.scrollX=app.scrollY=0;activatePage(1);app.showProgress=false;app.fileOffset=0;J rows=J::array();
+ for(int index=0;index<5;++index)rows.push_back({{"chat_title","人工檔案表測試"},{"name","路線照片 "+std::to_string(index+1)+".jpg"},{"kind","image"},{"status","saved"},{"reason","原檔已保存，可離線開啟。"}});
+ app.fileReport={{"files",rows},{"total",rows.size()},{"limit",50}};drawFileRows();layout();RECT table{};GetWindowRect(app.fileList,&table);requireUi(table.bottom-table.top>=140,"720-pixel window reserves a readable file table before allocating result notes");
+ // A resized reason column adds the horizontal scrollbar seen in the real
+ // report. Its height must not hide the first three complete file rows.
+ ListView_SetColumnWidth(app.fileList,4,420);UpdateWindow(app.fileList);SCROLLINFO horizontal{sizeof(horizontal),SIF_ALL};requireUi(GetScrollInfo(app.fileList,SB_HORZ,&horizontal)&&horizontal.nMax>=static_cast<int>(horizontal.nPage),"file table viewport test includes an actual horizontal scrollbar");RECT client{},header{};GetClientRect(app.fileList,&client);GetWindowRect(ListView_GetHeader(app.fileList),&header);MapWindowPoints(nullptr,app.fileList,reinterpret_cast<POINT*>(&header),2);
+ requireUi(ListView_GetItemCount(app.fileList)==5&&ListView_GetCountPerPage(app.fileList)>=3,"compact saved-result table has capacity for at least three complete rows");for(int index=0;index<3;++index){RECT row{};requireUi(ListView_GetItemRect(app.fileList,index,&row,LVIR_BOUNDS)&&row.top>=header.bottom&&row.bottom<=client.bottom&&row.bottom>row.top,"first three file rows remain fully below the header and above the horizontal scrollbar");}
+ app.fileReport=std::move(previousReport);app.showProgress=previousProgress;app.fileOffset=previousOffset;SendMessageW(window,WM_DPICHANGED,MAKEWPARAM(previousDpi,previousDpi),reinterpret_cast<LPARAM>(&previousWindow));activatePage(previousPage);drawFileRows();layout();
+}
 class StopAfterSavedFileSource:public DemoSource{
  public:std::atomic<bool> waiting{false};
  fs::path download(const J& chat,const J& file,const fs::path& destination,Control& control)override{if(downloads){waiting=true;for(;;)control.wait(20);}return DemoSource::download(chat,file,destination,control);}
@@ -208,7 +219,7 @@ int main(){try{
   RECT button{};requireUi(GetWindowRect(GetDlgItem(window,ID_START),&button),"button bounds readable");requireUi(button.right-button.left==MulDiv(200,dpi,96),"button width follows DPI");requireUi(button.bottom-button.top==MulDiv(36,dpi,96),"button height follows DPI");
   RECT actual{};GetWindowRect(window,&actual);auto work=workArea(window);requireUi(actual.left>=work.left&&actual.top>=work.top&&actual.right<=work.right&&actual.bottom<=work.bottom,"window stays within work area");workspaceBoundsUiChecks();
  }
- workspaceSelectionUiChecks(window);databasePickerUiChecks();
+ resultTableViewportUiChecks(window);workspaceSelectionUiChecks(window);databasePickerUiChecks();
  SetWindowPos(window,nullptr,0,0,600,400,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);layout();SCROLLINFO info{sizeof(info),SIF_ALL};requireUi(GetScrollInfo(window,SB_VERT,&info)&&info.nMax>=679&&info.nPage<680,"small window has vertical scroll range");
  for(int cycle=0;cycle<4;cycle++){scrollView(false,SB_BOTTOM);scrollView(false,SB_TOP);requireUi(!app.layingOut,"scroll repaint exits layout guard");requireUi(GetUpdateRect(window,nullptr,FALSE)==0,"scroll batch redraw consumes parent invalidation");}
  scrollView(false,SB_BOTTOM);requireUi(app.scrollY>0,"scroll reaches lower controls");scrollView(false,SB_TOP);requireUi(app.scrollY==0,"scroll returns to top");

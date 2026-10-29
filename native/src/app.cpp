@@ -96,11 +96,11 @@ void layout(){
  place(ID_START,m,H-108,200,36);place(ID_PAUSE,236,H-108,96,36);place(ID_STOP,344,H-108,144,36);place(ID_VIEW_RESULT,500,H-108,184,36);
  if(app.status)app.bases[app.status]=RECT{m,H-62,W-m,H-14};
  // Saved messages and file results are a separate workspace, with fixed actions and page controls.
- place(ID_RESULT_TITLE,m,152,cw,28);place(ID_RESULT_HINT,m,188,cw,24);
- place(ID_OPEN,m,224,156,34);place(ID_CHECK,192,224,156,34);place(ID_REBUILD,360,224,156,34);place(ID_BACKUP,528,224,176,34);place(ID_IMPORT,716,224,std::max(140,W-740),34);
- place(ID_FILE_REFRESH,m,270,112,32);place(ID_MEDIA_IMPORT,148,270,180,32);place(ID_OPEN_DATA,340,270,160,32);place(ID_FILE_STATE,512,270,164,32);place(ID_FILE_SEARCH,688,270,std::max(144,W-712),32);
- place(ID_FILES,m,314,cw,std::max(44,H-626));place(ID_FILE_PREV,m,H-300,112,28);place(ID_FILE_NEXT,148,H-300,112,28);place(ID_FILE_PAGE,276,H-295,W-300,24);
- place(ID_TASK_NOTE,m,H-256,cw,88);place(ID_IMPORT_HINT,0,0,0,0);place(ID_DATA_HINT,0,0,0,0);
+ place(ID_RESULT_TITLE,m,144,cw,24);place(ID_RESULT_HINT,m,172,cw,18);
+ place(ID_OPEN,m,198,156,30);place(ID_CHECK,192,198,156,30);place(ID_REBUILD,360,198,156,30);place(ID_BACKUP,528,198,176,30);place(ID_IMPORT,716,198,std::max(140,W-740),30);
+ place(ID_FILE_REFRESH,m,236,112,28);place(ID_MEDIA_IMPORT,148,236,180,28);place(ID_OPEN_DATA,340,236,160,28);place(ID_FILE_STATE,512,236,164,28);place(ID_FILE_SEARCH,688,236,std::max(144,W-712),28);
+ place(ID_FILES,m,272,cw,std::max(148,H-532));place(ID_FILE_PREV,m,H-248,112,28);place(ID_FILE_NEXT,148,H-248,112,28);place(ID_FILE_PAGE,276,H-243,W-300,24);
+ place(ID_TASK_NOTE,m,H-208,cw,40);place(ID_IMPORT_HINT,0,0,0,0);place(ID_DATA_HINT,0,0,0,0);
  place(ID_HISTORY_TITLE,m,152,cw,28);place(ID_HISTORY_HINT,m,188,cw,40);place(ID_HISTORY,m,236,cw,std::max(100,H-496));
  place(ID_HISTORY_REFRESH,m,H-248,156,34);place(ID_HISTORY_APPLY,192,H-248,212,34);place(ID_HISTORY_DELETE,416,H-248,176,34);place(ID_HISTORY_PREV,m,H-202,112,28);place(ID_HISTORY_NEXT,148,H-202,112,28);place(ID_HISTORY_PAGE,276,H-197,W-300,24);place(ID_HISTORY_NOTE,0,0,0,0);
  place(ID_PROBE_TITLE,m,152,cw,28);place(ID_PROBE_HINT,m,192,cw,44);place(ID_PROBE,m,252,216,36);place(ID_REPORT,252,252,216,36);place(ID_PROFILE,m,308,216,36);place(ID_UIA_CONNECT,252,308,264,36);place(ID_PROBE_NOTE,m,370,cw,100);
@@ -110,7 +110,7 @@ void layout(){
  for(auto& [w,b]:app.bases){wchar_t type[32]{};GetClassNameW(w,type,32);const int h=wcscmp(type,L"ComboBox")==0?scaled(220):scaled(b.bottom-b.top);MoveWindow(w,scaled(b.left)-app.scrollX,scaled(b.top)-app.scrollY,scaled(b.right-b.left),h,FALSE);}
  if(app.list){ListView_SetColumnWidth(app.list,0,scaled(std::max(280,cw-350)));ListView_SetColumnWidth(app.list,1,scaled(120));ListView_SetColumnWidth(app.list,2,scaled(210));}
  if(app.historyList)for(auto [index,ww]:std::vector<std::pair<int,int>>{{0,190},{1,std::max(180,cw-620)},{2,120},{3,290}})ListView_SetColumnWidth(app.historyList,index,scaled(ww));
- if(app.fileList)for(auto [index,ww]:std::vector<std::pair<int,int>>{{0,180},{1,std::max(220,cw-610)},{2,100},{3,120},{4,200}})ListView_SetColumnWidth(app.fileList,index,scaled(ww));
+ if(app.fileList)for(auto [index,ww]:std::vector<std::pair<int,int>>{{0,160},{1,std::max(220,cw-602)},{2,80},{3,128},{4,210}})ListView_SetColumnWidth(app.fileList,index,scaled(ww));
  RedrawWindow(app.window,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_ALLCHILDREN|RDW_UPDATENOW);app.layingOut=false;
 }
 void scrollView(bool horizontal,int request){SCROLLINFO info{sizeof(SCROLLINFO),SIF_ALL};GetScrollInfo(app.window,horizontal?SB_HORZ:SB_VERT,&info);int& position=horizontal?app.scrollX:app.scrollY;switch(request){case SB_LINEUP:position-=scaled(36);break;case SB_LINEDOWN:position+=scaled(36);break;case SB_PAGEUP:position-=static_cast<int>(info.nPage);break;case SB_PAGEDOWN:position+=static_cast<int>(info.nPage);break;case SB_THUMBTRACK:case SB_THUMBPOSITION:position=info.nTrackPos;break;case SB_TOP:position=0;break;case SB_BOTTOM:position=info.nMax;break;default:return;}layout();}
