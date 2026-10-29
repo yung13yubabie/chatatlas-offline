@@ -1,11 +1,14 @@
 CXX ?= g++
-CXXFLAGS = -std=c++20 -O0 -g -DJSON_DIAGNOSTICS=1 -Isrc -Iinclude -Ivendor
-SRC = platform database store archive zip demo bundle import
-OBJ = $(addprefix build/,$(addsuffix .o,$(SRC)))
+CXXFLAGS = -std=c++20 -O0 -g -DJSON_DIAGNOSTICS=1 -Isrc -Iinclude -Ivendor -I../.toolchains/sqlite3mc-2.6.1
+SRC = platform database store archive zip demo bundle import line_cipher line_process line_media line_database line_obs
+OBJ = $(addprefix build/,$(addsuffix .o,$(SRC))) build/line_cipher_engine.o
 all: build/core-test
-build/%.o: src/%.cpp $(wildcard src/*.hpp)
+build/%.o: src/%.cpp $(wildcard src/*.hpp) | build/line_cipher_engine.o
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+build/line_cipher_engine.o: ../tools/fetch_line_cipher.mjs ../tools/build_line_cipher.mjs
+	@mkdir -p build
+	node ../tools/build_line_cipher.mjs --cc '$(CC)' --output $@
 build/core-test: $(OBJ) tests/core_test.cpp
 	$(CXX) $(CXXFLAGS) tests/core_test.cpp $(OBJ) -ldl -o $@
 build/atlas-cli: $(OBJ) src/cli.cpp
@@ -51,6 +54,25 @@ test-capture-history: build/capture-history-test
 test-import: build/import-test
 	@d=$$(mktemp -d) || exit 1; ./build/import-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
 
+build/line-cipher-test: $(OBJ) tests/line_cipher_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_cipher_test.cpp $(OBJ) -ldl -pthread -o $@
+build/line-process-test: $(OBJ) tests/line_process_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_process_test.cpp $(OBJ) -ldl -pthread -o $@
+build/line-media-test: $(OBJ) tests/line_media_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_media_test.cpp $(OBJ) -ldl -pthread -o $@
+build/line-database-test: $(OBJ) tests/line_database_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_database_test.cpp $(OBJ) -ldl -pthread -o $@
+.PHONY: test-line-cipher test-line-process test-line-media test-line-database
+test: test-line-cipher test-line-process test-line-media test-line-database
+test-line-process: build/line-process-test
+	./build/line-process-test
+test-line-cipher: build/line-cipher-test
+	@d=$$(mktemp -d) || exit 1; ./build/line-cipher-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+test-line-media: build/line-media-test
+	@d=$$(mktemp -d) || exit 1; ./build/line-media-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+test-line-database: build/line-database-test
+	@d=$$(mktemp -d) || exit 1; ./build/line-database-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
 build/bridge-timing-test: tests/bridge_timing_test.cpp src/bridge_timing.hpp
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) tests/bridge_timing_test.cpp -o $@
@@ -88,3 +110,10 @@ build/private-path-contract-test: tests/private_path_contract_test.cpp src/priva
 
 build/time-contract-test: $(OBJ) tests/time_contract_test.cpp
 	$(CXX) $(CXXFLAGS) tests/time_contract_test.cpp $(OBJ) -ldl -o $@
+
+build/line-obs-test: $(OBJ) tests/line_obs_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_obs_test.cpp $(OBJ) -ldl -pthread -o $@
+.PHONY: test-line-obs
+test: test-line-obs
+test-line-obs: build/line-obs-test
+	./build/line-obs-test

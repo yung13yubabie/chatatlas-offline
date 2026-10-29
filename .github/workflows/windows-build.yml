@@ -2,6 +2,8 @@ name: Build native Windows alpha candidate
 on:
   workflow_dispatch:
   push:
+    branches: ['main']
+    paths: ['VERSION']
     tags: ['v*-alpha.*']
 permissions:
   contents: read
@@ -23,6 +25,7 @@ jobs:
       - run: node tools/download_contract_test.cjs
       - run: node tools/capture_presentation_test.cjs
       - run: node native/tests/bridge_timing_contract.cjs
+      - run: node tools/fetch_line_cipher.mjs
       - run: make -C native test build/atlas-cli
       - run: node tools/graph_model_test.cjs
       - run: node native/tests/windows_bridge_contract.cjs
@@ -126,3 +129,134 @@ jobs:
           path: ${{ runner.temp }}/chatatlas-release-ui/*.png
           if-no-files-found: warn
           retention-days: 14
+  publish-release:
+    needs: [build, exact-release-smoke]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    concurrency:
+      group: chatatlas-native-release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      attestations: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ChatAtlas-alpha-candidate-NOT-security-approved
+          path: release-assets
+      - name: Verify original assets and publish the new prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          import os from 'node:os';
+          import crypto from 'node:crypto';
+          import {spawnSync,execFileSync} from 'node:child_process';
+          import {readZip} from './tools/zip_archive.mjs';
+
+          const version=fs.readFileSync('VERSION','utf8').trim();
+          const repo=process.env.GITHUB_REPOSITORY,source=process.env.GITHUB_SHA;
+          const run=process.env.GITHUB_RUN_ID,attempt=process.env.GITHUB_RUN_ATTEMPT;
+          if(!/^0\.3\.1-alpha\.[1-9][0-9]*$/.test(version)||!/^[0-9a-f]{40}$/.test(source)||!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)||!/^\d+$/.test(run)||!/^\d+$/.test(attempt))throw Error('Invalid release source or version');
+          const tag='v'+version;
+          if(process.env.GITHUB_REF_TYPE==='tag'&&process.env.GITHUB_REF_NAME!==tag)throw Error('Tag and VERSION mismatch');
+          const names=[
+            'ChatAtlas-'+version+'-source.zip',
+            'ChatAtlas-'+version+'-Windows-x64-candidate.zip',
+            'ChatAtlas-'+version+'-Windows-x64.exe',
+            'ChatAtlas-'+version+'-CHECKLIST.txt',
+            'SHA256SUMS.txt'
+          ];
+          const sha=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
+          const digest=new Map();
+          function verify(directory,initial=false){
+            const actual=fs.readdirSync(directory).sort();
+            if(JSON.stringify(actual)!==JSON.stringify([...names].sort()))throw Error('Unexpected or missing release asset');
+            for(const name of names){const file=path.join(directory,name);if(!fs.lstatSync(file).isFile())throw Error('Release assets must be regular files');}
+            const lines=fs.readFileSync(path.join(directory,'SHA256SUMS.txt'),'utf8').trimEnd().split('\n');
+            if(lines.length!==names.length-1)throw Error('Unexpected release checksum count');
+            const sums=new Map();
+            for(const line of lines){const match=/^([0-9a-f]{64})  ([A-Za-z0-9._-]+)$/.exec(line);if(!match||sums.has(match[2])||!names.slice(0,-1).includes(match[2]))throw Error('Invalid or duplicate release checksum');sums.set(match[2],match[1]);}
+            for(const name of names){const bytes=fs.readFileSync(path.join(directory,name)),hash=sha(bytes);if(!bytes.length||(name!=='SHA256SUMS.txt'&&sums.get(name)!==hash))throw Error('Release asset digest mismatch');if(initial)digest.set(name,hash);else if(digest.get(name)!==hash)throw Error('Uploaded release bytes differ from the validated CI artifact');}
+            const members=readZip(fs.readFileSync(path.join(directory,names[1])));
+            const executable=members.get('ChatAtlas/ChatAtlas.exe');
+            if(!executable?.equals(fs.readFileSync(path.join(directory,names[2]))))throw Error('Standalone EXE differs from the exact tested ZIP');
+            const provenance=JSON.parse(members.get('ChatAtlas/BUILD_PROVENANCE.json'));
+            if(provenance.version!==version||provenance.binary.sha256!==sha(executable))throw Error('Release binary provenance mismatch');
+          }
+          verify('release-assets',true);
+          execFileSync(process.execPath,['native/tests/consumer_zip_contract.cjs',path.join('release-assets',names[1])],{stdio:'inherit'});
+          for(const name of names)execFileSync('gh',['attestation','verify',path.join('release-assets',name),'--repo',repo,'--signer-workflow',repo+'/.github/workflows/windows-build.yml','--source-digest',source,'--deny-self-hosted-runners'],{stdio:'inherit'});
+
+          function api(endpoint,optional=false){
+            const result=spawnSync('gh',['api',endpoint],{encoding:'utf8'});
+            if(result.error)throw result.error;
+            if(result.status!==0){if(optional&&/HTTP 404\b/.test(result.stderr))return null;throw Error('GitHub release metadata request failed');}
+            return JSON.parse(result.stdout);
+          }
+          function tagCommit(){
+            const ref=api('repos/'+repo+'/git/ref/tags/'+tag,true);if(!ref)return null;
+            let object=ref.object;
+            for(let depth=0;depth<8;depth++){if(object.type==='commit')return object.sha;if(object.type!=='tag'||!/^[0-9a-f]{40}$/.test(object.sha))break;object=api('repos/'+repo+'/git/tags/'+object.sha).object;}
+            throw Error('Unexpected release tag target');
+          }
+          const existingTag=tagCommit();
+          if(existingTag&&existingTag!==source)throw Error('Existing release tag points to a different source; nothing was changed');
+          const releases=api('repos/'+repo+'/releases?per_page=100');
+          if(releases.some(release=>release.tag_name===tag)){console.log('Release already exists; its metadata and assets were left unchanged.');process.exit(0);}
+          if(!existingTag){
+            const result=spawnSync('gh',['api','--method','POST','repos/'+repo+'/git/refs','-f','ref=refs/tags/'+tag,'-f','sha='+source],{stdio:'pipe'});
+            if(result.error)throw result.error;
+            if(tagCommit()!==source)throw Error('Release tag could not be bound to the validated source');
+          }
+          const marker='<!-- chatatlas-release:'+source+':'+run+':'+attempt+' -->';
+          const runUrl='https://github.com/'+repo+'/actions/runs/'+run;
+          const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'chatatlas-publish-'));
+          const notes=path.join(temporary,'release-notes.md');
+          fs.writeFileSync(notes,[
+            '原生 Windows x64 預覽版：直接唯讀連接選定的 LINE 本機資料庫，並嘗試透過 LINE 附件 API 取得圖片、影片與檔案。',
+            '',
+            '建議下載 `'+names[1]+'`，解壓整包後開啟 `ChatAtlas.exe`。另提供單一 EXE；兩者的執行檔位元組相同，且均內含第三方授權告示。不需要安裝 Python、Node.js、MCP 或另裝解密套件。',
+            '',
+            '已接上原生 OBS／LEG Y 授權與已知 E2EE 媒體解密流程。真實 LINE 帳號仍需實機驗證；無法辨識的登入資訊、缺少媒體金鑰、已過期或遭拒的附件會保留未取得狀態。相簿、記事本與雲端歷史回補尚未涵蓋。附件下載可能使用網路，產生的閱讀頁可離線開啟。',
+            '',
+            'EXE 尚未有 Authenticode 簽章。請保留原始資料與備份，勿停用系統保護。',
+            '',
+            '來源提交：[`'+source+'`](https://github.com/'+repo+'/commit/'+source+')。',
+            '這次的原生、加密、附件與實際封裝 EXE 驗證：['+runUrl+']('+runUrl+')。全部 Release 檔案沿用這次 CI 的原始位元組，並附 SHA-256 與 GitHub 建置來源證明；這不是安全認證。',
+            '',
+            '操作說明：[LINE 本機資料庫與附件](https://github.com/'+repo+'/blob/'+tag+'/docs/LINE_DATABASE_IMPORT.md)。',
+            '',marker,''
+          ].join('\n'),{flag:'wx'});
+          let created=null,published=false;
+          try{
+            const result=spawnSync('gh',['release','create',tag,'--repo',repo,'--target',source,'--title','聊藏 '+version+'｜原生 LINE 資料庫與附件','--notes-file',notes,'--prerelease','--draft',...names.map(name=>path.join('release-assets',name))],{stdio:'inherit'});
+            const candidates=api('repos/'+repo+'/releases?per_page=100').filter(release=>release.tag_name===tag&&release.draft&&release.body?.includes(marker));
+            if(candidates.length===1)created=candidates[0];
+            if(result.error)throw result.error;
+            if(result.status!==0||!created)throw Error('Release draft upload did not finish');
+            const download=path.join(temporary,'downloaded');fs.mkdirSync(download);
+            for(const asset of created.assets){
+              if(!names.includes(asset.name)||asset.state!=='uploaded')throw Error('Unexpected uploaded asset');
+              const descriptor=fs.openSync(path.join(download,asset.name),'wx');
+              try{const result=spawnSync('gh',['api','repos/'+repo+'/releases/assets/'+asset.id,'-H','Accept: application/octet-stream'],{stdio:['ignore',descriptor,'inherit']});if(result.error)throw result.error;if(result.status!==0)throw Error('Uploaded asset readback failed');}finally{fs.closeSync(descriptor);}
+            }
+            verify(download);
+            execFileSync('gh',['release','edit',tag,'--repo',repo,'--draft=false','--prerelease'],{stdio:'inherit'});
+            published=true;
+            if(tagCommit()!==source)throw Error('Published tag differs from the validated source');
+            const final=api('repos/'+repo+'/releases/'+created.id);
+            if(final.draft||!final.prerelease)throw Error('Release publication state differs');
+            console.log('Published '+final.html_url);
+          }finally{
+            if(created&&!published){const current=api('repos/'+repo+'/releases/'+created.id);if(current.draft&&current.body?.includes(marker))execFileSync('gh',['api','--method','DELETE','repos/'+repo+'/releases/'+created.id],{stdio:'inherit'});}
+            fs.rmSync(temporary,{recursive:true,force:true});
+          }
+          NODE

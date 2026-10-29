@@ -2,14 +2,22 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.7｜Windows x64 可攜預覽版**
+**0.3.1-alpha.8｜Windows x64 原生 LINE 資料庫預覽版**
 
 > 本版套件僅由通過驗收的 CI 產物發布；是否已可下載，請以本版 Release 頁的實際狀態為準。
 
-[Windows 原生版 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.7/ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip) · [alpha.7 Release、原始碼與校驗檔](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.7)
+[Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/ChatAtlas-0.3.1-alpha.8-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.8/SHA256SUMS.txt) · [alpha.8 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8)
 
-> **真實 LINE 自動採集尚未完成驗收，不是已完成的 LINE 備份工具。**
-> 本版沒有隨附已驗證的 LINE 版面設定。可以先看人工範例、探索離線閱讀頁；請勿把範例、啟動畫面或通過 CI 當成真實聊天室已能完整保存的證明。
+> **真實 LINE 帳號與媒體相容性仍需實機驗證。**
+> 本版直接讀取本機資料庫並嘗試自動取得附件；原生來源不需版面設定。人工資料測試與 CI 不能證明每個帳號、每個附件或全部歷史都能保存。
+
+## alpha.8：直接讀取 LINE 本機資料庫
+
+alpha.8 在原生 EXE 內加入 LINE 本機資料庫來源。保持 Windows LINE 登入，在聊藏按「連接 LINE 本機資料庫」選取自己的 `.edb`，即可列出聊天室，再使用既有收藏、搜尋與離線地圖流程。這條路徑不需 LINE 版面設定，也不需執行 Python、匯出 JSON 或另裝執行套件；所需解密程式碼已編入 EXE。
+
+圖片與附件使用資料庫內的訊息識別，以及同一個已核對 LINE 程序中實際讀到的登入工作階段，經原生 LINE OBS API 嘗試取回；成功後保存原始位元組、雜湊與離線預覽。**只在 LINE 裡看得到、尚未另存的圖片，目前仍不能保證取得**：缺少可辨識的工作階段或媒體金鑰、授權失效，或附件已過期時會列為未取得，不把縮圖當成完整原圖。另有可選的手動補入原檔功能；目前不另外下載對話歷史、相簿或記事本。操作步驟與格式限制見 [LINE 本機資料庫說明](docs/LINE_DATABASE_IMPORT.md)。
+
+此功能由 alpha.8 提供，既有 alpha.7 Release、tag 與 ZIP 保持不變。發布前必須通過原生建置、來源證明與實際封裝 EXE 測試；最終結果見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md) 和 Release。
 
 ## 下載後怎麼開
 
@@ -18,7 +26,9 @@
 3. 想先試介面，點「查看人工範例」；或直接用瀏覽器開啟包內的 `人工範例/index.html`。
 4. 請保留 HTML 旁邊的資料夾，圖片、內容與另存檔案功能會用到它們。
 
-這是原生執行檔，不是套件安裝器；啟動不會下載或安裝開發環境。LINE 連線部分使用 Windows 內建元件。離線閱讀頁使用隨包資源，不依賴 CDN、遠端字型、線上模型或本機伺服器。
+也可下載單一 EXE，放到可寫入的一般本機私人資料夾後開啟；完整第三方授權告示已內嵌。ZIP 另附人工範例與授權文件。
+
+這是原生執行檔，不是套件安裝器；啟動不會下載或安裝開發環境。LINE 本機資料庫來源的解密程式碼隨 EXE 編入，視窗辨識與程序存取使用 Windows 元件。離線閱讀頁使用隨包資源，不依賴 CDN、遠端字型、線上模型或本機伺服器。
 
 **EXE 尚未有 Authenticode 程式碼簽章。** 若系統阻擋，請勿為了使用預覽版停用 SmartScreen、防毒或其他系統保護。
 
@@ -44,6 +54,17 @@
 請避免把程式放在唯讀、受保護或多人共用且權限寬鬆的位置。網路共用、映射網路磁碟及雲端同步／連結位置不支援建立私人資料；請先將整包複製到一般本機資料夾。保存位置必須能驗證 Windows 私人 ACL；**不是所有隨身碟格式都適用，FAT32／exFAT 不能當成 NTFS 權限保護的替代品。**
 
 「可攜」指應用程式自己的資料位置，不代表電腦完全不留痕跡。Windows、瀏覽器、防毒及底層元件的暫存或診斷可能留下各自的紀錄，聊藏不會停用或清除它們。
+
+## alpha.8 驗證與發布
+
+原生資料庫與附件程式來源 `ea7b523` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40834861312) 已通過 Linux、Windows 與瀏覽器人工資料測試。這是版本更新前的程式驗證；alpha.8 最終發布仍必須對合併主線的精確來源重新建置與測試，不能沿用舊 EXE 或校驗值。
+
+發布只採用同一輪 CI 的原始產物：單一 EXE、Windows ZIP、來源 ZIP、檢查說明及 `SHA256SUMS.txt`，並核對來源證明與實際封裝 EXE。合併來源、執行紀錄及發布狀態見 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。
+
+<details>
+<summary>alpha.7 與更早版本的畫面及發布紀錄</summary>
+
+以下保留 alpha.7 發布時的畫面、來源與驗證紀錄，不代表 alpha.8 的新按鈕或原生資料庫實機結果。
 
 ## 畫面預覽
 
@@ -158,6 +179,8 @@ gh attestation verify ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip --repo y
 
 </details>
 
+</details>
+
 ## 使用前請知道
 
 - **真實 LINE 自動採集、已驗證的版面設定及多 GB 真實工作負載，仍需另外實機驗收。** 請保留原始資料與第二份副本，不要用預覽版處理唯一一份重要聊天。
@@ -184,12 +207,13 @@ gh attestation verify ChatAtlas-0.3.1-alpha.7-Windows-x64-candidate.zip --repo y
 <details>
 <summary>原始碼位置、建置與測試</summary>
 
-原生 Windows 程式位於 `native/`，共用閱讀頁位於 `src/line_vault/web/`。舊 Python 實作僅留作歷史來源參考，不會被原生 EXE、CI 或發布管線載入；請勿使用歷史 Python 啟動入口。
+原生 Windows 程式位於 `native/`，共用閱讀頁位於 `src/line_vault/web/`。舊 Python 啟動入口、實作、測試與建置工具已移除；原生 EXE、CI 與發布管線均不執行 Python。LINE 本機來源現在由 C++ 直接讀取加密資料庫，沒有 Python 或 JSON 匯出橋接步驟。
 
 建置需要 **Zig 0.14.1**、Node.js；Linux 核心測試另需 GNU C++20、make 與系統 SQLite。以下是開發者操作，**不是使用者開啟 EXE 時會執行的安裝流程**：
 
 ```sh
 node tools/fetch_zig.mjs
+node tools/fetch_line_cipher.mjs
 ATLAS_ZIG="$PWD/.toolchains/zig-x86_64-linux-0.14.1/zig" node native/build.mjs
 make -C native test build/atlas-cli
 node tools/graph_model_test.cjs
@@ -199,11 +223,11 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.8 核對紀錄](docs/ALPHA8_REVIEW.md)。CI、原生建置與測試使用 C／C++、Node.js 及 PowerShell，不執行 Python。資料庫測試使用人工加密來源，不讀取真實 LINE。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
-alpha.1 至 alpha.6 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
+alpha.1 至 alpha.7 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
 
 </details>
 
