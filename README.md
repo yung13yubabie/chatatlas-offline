@@ -2,9 +2,11 @@
 
 保存 LINE 本機已同步的完整訊息，依聊天室閱讀、查看圖片影片與檔案，或從關聯地圖找回原文。
 
-**0.3.1-alpha.11｜Windows x64 原生訊息工作台候選版**
+**0.3.1-alpha.11｜Windows x64 原生訊息工作台**
 
-> alpha.11 正在進行本輪建置與驗證，尚未把前版測試當成本版通過證據。公開下載與精確來源請見 [Releases](https://github.com/yung13yubabie/chatatlas-offline/releases)；已發布版本的檔案不覆寫。
+> alpha.11 已於 2026-10-29 17:35:11 UTC 公開發布為 Windows 預覽版，來源固定為主線提交 [`6e0885ce`](https://github.com/yung13yubabie/chatatlas-offline/commit/6e0885cee9474a3fbd319bcdeb8671ea7f1b5938)。[Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40920270807) 三項工作與[正式發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40920270757) 四項工作全部成功；五個公開檔案已下載核對大小及 SHA-256。舊版檔案維持不變。
+
+[Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.11/ChatAtlas-0.3.1-alpha.11-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.11/ChatAtlas-0.3.1-alpha.11-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.11/ChatAtlas-0.3.1-alpha.11-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.11/SHA256SUMS.txt) · [alpha.11 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.11)
 
 真實 LINE 帳號與媒體相容性仍需實機驗證。本機資料庫能讀取，不代表已同步全部歷史，或每個圖片、影片與檔案都能取回。
 
@@ -19,13 +21,27 @@ EXE 把聊天室、保存結果、連線檢查、抓取紀錄及保存設定分�
 
 名稱會優先對應本機可用的聯絡人、本人、聊天室與社群資料。資料裡沒有名稱時會顯示「未命名對話」或「未知成員／名稱待確認」，不再用長識別碼當成名字，也不猜測人名。訊息正文不會因名稱及介面整理而刪減。
 
-「停止並保留」會停止抓取，保留已寫入的訊息及原檔，再整理可再次停止的輕量閱讀頁。此頁可閱讀已保存內容，檔案使用「開啟本機原檔」；瀏覽器可能忽略本機連結的另存檔名，因此不把開啟原檔當成已完成另存。正常完整產生的閱讀頁另提供經分塊核對的另存功能。若閱讀頁尚未整理完成，可到「保存結果」按「更新離線閱讀頁」，不必重抓已保存資料。
+「停止並保留」會停止抓取，保留已寫入的訊息及原檔，再整理可再次停止的輕量閱讀頁。此頁可閱讀已保存內容，檔案使用「開啟本機原檔」；瀏覽器可能忽略本機連結的另存檔名，因此不把開啟原檔當成已完成另存。正常完成及手動按「更新離線閱讀頁」都會產生完整閱讀頁，提供經分塊核對、依原名或可讀名稱另存的功能。手動更新只使用已保存資料，不需連接 LINE 或重抓原檔；更新中取消仍保留先前完成的閱讀頁。
 
 離線頁保留「全部聊天室」總覽；個別聊天室的完整訊息、圖片影片與檔案、關聯地圖各有入口，左側清單分頁。這裡的內容是已保存訊息，不是另行挑選的「收藏」。檔案另存優先保留原名，缺名才使用訊息時間與種類；TXT 使用聊天室名稱，同名加短序號。
 
 每個聊天室標示資料庫來源，各來源分開保存。能讀取的資料庫可能是歷史副本，不能據此認定全部屬於目前登入帳號。**LINE 來源資料庫是讀取的檔案；「儲存位置」是聊藏輸出訊息與檔案的資料夾。** 不用建立新的 `.db`，也不要把來源 `.edb` 填進儲存位置。
 
 圖片、影片與檔案使用資料庫內的訊息識別，以及同一個已核對 LINE 程序中實際讀到的登入工作階段嘗試取回。只在 LINE 裡能開啟、尚未另存的內容仍不能保證取得；缺少工作階段、媒體金鑰、授權失效或過期時會列為未取得，縮圖不會當成完整原圖。相簿、記事本及不在本機的對話歷史回補尚未涵蓋。詳見 [LINE 本機資料庫說明](docs/LINE_DATABASE_IMPORT.md) 與 [本輪介面設計依據](docs/UI_DESIGN.md)。
+
+## alpha.11 實際畫面與驗證
+
+四張畫面都對應來源 [`6e0885ce`](https://github.com/yung13yubabie/chatatlas-offline/commit/6e0885cee9474a3fbd319bcdeb8671ea7f1b5938)。兩張 Windows 圖來自[精確封裝 EXE 測試](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40920270757/job/123619346981)，兩張離線 HTML 圖來自同來源的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40920270807)。全部使用人工聊天室、訊息與檔案，沒有使用者聊天照片，不能當成真實 LINE 帳號或媒體取得的實機驗收。
+
+![alpha.11 實際封裝 EXE 聊天室工作台，人工資料](docs/screenshots/windows-native-alpha11.png)
+
+![alpha.11 實際封裝 EXE 逐檔保存結果，人工資料](docs/screenshots/windows-results-alpha11.png)
+
+![alpha.11 Source CI 離線 HTML 全部聊天室關聯圖，人工資料](docs/screenshots/offline-map-alpha11.png)
+
+![alpha.11 Source CI 離線 HTML 圖片影片與檔案清單，人工資料](docs/screenshots/offline-files-alpha11.png)
+
+本輪 Linux、Windows、離線瀏覽器及實際封裝 EXE 的操作組全部通過。公開 EXE 與 ZIP 內執行檔位元組相同，來源 ZIP 的 226 個來源檔逐一符合固定提交；公開檔案均沿用本輪 CI 產物，並有[建置來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/61409882)。詳見 [alpha.11 核對紀錄](docs/ALPHA11_REVIEW.md)。後續文件與截圖提交不是 EXE 建置來源，也不改動發行 tag。
 
 ## 下載後怎麼開
 
