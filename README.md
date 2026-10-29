@@ -47,27 +47,38 @@
 
 ## 畫面預覽
 
-本輪 alpha.7 實際截圖待精確來源 CI 產生；以下暫留已標示版本的 alpha.6 歷史畫面，不作為 alpha.7 驗收。
-
-以下五張是 alpha.6 程式來源 `81c9dbc4` 的實際執行畫面。兩張原生圖來自 Native CI 的 `exact-release-smoke` 工作，以 `ATLAS_QA` 啟用測試流程，執行實際封裝的 EXE；三張離線 HTML 圖來自同一來源的瀏覽器測試。全部使用人工資料，不是設計稿或真實 LINE 採集證明。
+以下是 alpha.7 程式來源 `04c97fecde52a12d653b8530b742ebe8b2b3a378` 的實際執行畫面。原生圖來自 Native CI 的 `exact-release-smoke` 工作，以 `ATLAS_QA` 啟用測試流程，執行實際封裝的 EXE；離線 HTML 圖來自同一來源的瀏覽器測試。全部使用人工資料，不是設計稿或真實 LINE 採集證明。
 
 ### Windows 原生程式
 
-![alpha.6 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha6.png)
+![alpha.7 Windows 原生程式實際截圖，LINE 尚未連接](docs/screenshots/windows-native-alpha7.png)
 
-原生啟動畫面尚未連接 LINE，不等於已完成真實採集。真正預設保存位置為 EXE 旁的 `ChatAtlasData/Collections`。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
+原生啟動畫面尚未連接 LINE，不等於已完成真實採集。真正預設保存位置為 EXE 旁的 `ChatAtlasData/Collections`。圖中的 `C:\ChatAtlas-Example` 是 `ATLAS_QA` 人工示範路徑，不是實際預設值。此 runner 的可用高度較小，因此畫面可捲動；鍵盤移動到下方控制項時也會自動保持可見。
 
-[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713448403) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40713161892)
+[原生畫面與可攜測試紀錄](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810609603) · [離線 HTML 畫面與操作驗收](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810537537)
+
+<details>
+<summary>展開捲動及收藏管理的實際畫面</summary>
+
+![alpha.7 EXE 向下捲動中段實際畫面](docs/screenshots/windows-scroll-middle-alpha7.png)
+
+![alpha.7 EXE 捲至底部，開始、暫停與停止控制項](docs/screenshots/windows-scroll-bottom-alpha7.png)
+
+![alpha.7 我的收藏分頁與開啟 ChatAtlasData 按鈕](docs/screenshots/windows-collection-alpha7.png)
+
+本輪頂端與捲回頂端的截圖位元組相同，中段與底部未見文字互蓋。這些圖片由真實視窗的 `PrintWindow` 取得，會觸發重繪，不能單憑圖片保證所有顯示卡、桌面合成與多螢幕情境皆無殘影。收藏頁頂端圖未涵蓋下方所有控制項，仍可向下捲動。
+
+</details>
 
 ### 採集紀錄
 
-![alpha.6 實際封裝 EXE 的採集紀錄畫面，三筆人工整理紀錄](docs/screenshots/windows-history-alpha6.png)
+![alpha.7 實際封裝 EXE 的採集紀錄畫面，三筆人工整理紀錄](docs/screenshots/windows-history-alpha7.png)
 
-測試透過實際視窗控制項選取人工收藏、切換採集紀錄分頁並讀取三筆紀錄，不是把文字貼到畫面。這證明人工收藏的紀錄動線，不代表已連接真實 LINE。
+測試透過實際視窗控制項選取人工收藏、切換採集紀錄分頁並讀取三筆 UTC+8 紀錄，不是把文字貼到畫面。這證明人工收藏的紀錄動線，不代表已連接真實 LINE。
 
 ### 離線關聯地圖
 
-![alpha.6 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha6.png)
+![alpha.7 離線關聯地圖實際截圖，使用人工範例](docs/screenshots/offline-map-alpha7.png)
 
 - 點人物、關鍵字或附件，看相關內容與原文。
 - 切換「閱讀內容」或「圖片與檔案」，不用在地圖裡找每一則訊息。
@@ -79,13 +90,13 @@
 
 ### 閱讀內容
 
-![alpha.6 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha6.png)
+![alpha.7 閱讀畫面實際截圖，使用人工範例](docs/screenshots/offline-reading-alpha7.png)
 
 ### 手機寬度
 
-![alpha.6 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha6.png)
+![alpha.7 離線 HTML 手機寬度實際截圖](docs/screenshots/offline-mobile-alpha7.png)
 
-手機寬度圖僅展示閱讀頁布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
+手機寬度圖僅展示關聯地圖與內容區布局，不代表 Windows EXE 可在手機執行，也不是 Android 原生應用程式。
 
 </details>
 
@@ -95,6 +106,7 @@
 - **視窗與資料管理：** 整批移動控制項後統一重繪；新增「開啟 ChatAtlasData」，只開啟資料目錄，不代為刪除內容。採集紀錄改以 UTC+8 顯示，資料庫仍保存原始 UTC。
 - **連線提示：** 分開「找不到 LINE 主視窗」與「找到多個視窗」；未載入版面設定時只做辨識，載入設定亦不等於已通過真實採集驗證。
 - **環境指引：** 雲端同步／重解析點仍保守拒絕，指引改放一般本機目錄，不把所有重解析點都稱為 OneDrive。
+- **同範疇旁支：** 再次連線檢查失敗或取消時不再保留舊診斷報告；時間轉成 UTC 後超出既有 1970–2999 年範圍會明確拒絕；延伸 Windows 路徑的正規化與父層走訪保留磁碟／共用根界線，不放寬網路私人保存政策。
 - 詳見 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。
 
 ### 保留的 alpha.6 修正
@@ -118,9 +130,11 @@
 
 ## 驗證狀態
 
-alpha.7 的來源、Windows 執行包與新版實際畫面仍須對精確提交執行完整 CI。下方 alpha.6 圖片連結只屬歷史證據，不沿用為本版通過紀錄。完成後只發布最終來源 CI 的原始四個產物，不重新打包。
+程式來源 `04c97fec` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810537537) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810609603) 各三個工作全部成功，包含 Windows 合成控制項測試及實際封裝 EXE 的啟動、範例、可攜位置與關閉驗證。上方圖片固定來自這個來源；後續文件提交不冒充圖片來源。
 
-本版應核對的項目包括：
+最終發布還會對包含文件的來源重跑完整 CI，僅採用該次原始四個產物，不重新打包；最終提交、CI 與來源證明請見 Release。
+
+本輪程式驗證與發布核對範圍：
 
 - Windows 私人 ACL、讀取／鎖檔、原生核心與可攜 GUI；對實際封裝 EXE 驗證啟動與關閉。
 - ZIP64 65,536 項、長名稱、4 GiB／uint64 算術邊界及來源增長拒絕。
@@ -185,11 +199,11 @@ node tools/package_test.mjs
 node tools/package_release.mjs --output dist
 ```
 
-詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.6 核對紀錄](docs/ALPHA6_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
+詳細測試與執行方式見 [原生開發說明](native/README.md)、workflow 及 [alpha.7 核對紀錄](docs/ALPHA7_REVIEW.md)。全部 CI 使用 C++、Node.js 與 PowerShell，不執行 Python。
 
 打包只讀取經檢查的 Git 暫存區白名單，不遞迴複製整個工作目錄。EXE 與執行環境二進位產物放 Release；Repo 截圖只使用已確認的人工資料。`ChatAtlasData` 不得進入公開來源或發布包。
 
-alpha.1 至 alpha.5 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
+alpha.1 至 alpha.6 已發布的 Release、tag 與檔案保持不變。各版的來源、截圖及交付紀錄需各自核對；README 後續文件更新不代表重新標記或改動已發布執行檔。
 
 </details>
 

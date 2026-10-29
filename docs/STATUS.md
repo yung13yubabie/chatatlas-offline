@@ -1,8 +1,26 @@
-# 0.3.1-alpha.7 候選版狀態
+# 0.3.1-alpha.7 驗證狀態
 
-目前正在核對與修正本機私人儲存邊界、GUI 捲動重繪、LINE 視窗診斷、資料目錄入口及 UTC+8 歷史顯示。另修正已查證的舊診斷報告殘留、UTC 年界及延伸路徑正規化旁支。精確提交 CI 與新版實際圖片尚待完成，不沿用前版成功紀錄。
+程式來源 `04c97fecde52a12d653b8530b742ebe8b2b3a378` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810537537) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810609603) 各三個工作成功。以下紀錄只對應這個精確來源；包含實際圖片的後續文件提交仍須重新建置驗證，最終發布來源及四個資產以 Release 為準。
 
-本輪範圍與未測界線見 [ALPHA7_REVIEW.md](ALPHA7_REVIEW.md)。不修改 alpha.1～6 已發布標籤或資產。
+| 本輪 Windows 驗證 | 結果 |
+| --- | --- |
+| UTC 範圍與正規化冪等性 | 40 項通過 |
+| 私人路徑 preflight、根目錄、長路徑及別名 | 43 項通過；不是實際 SMB 驗收 |
+| 原生核心 | 127 項通過 |
+| Win32 合成 DPI／捲動／診斷／時間顯示 | 144 項通過 |
+| 附件路徑整合 | 120 項通過 |
+| ZIP 邊界 | 57 項通過 |
+| 匯入備份 | 155 項通過 |
+| 採集紀錄、文字政策、格式升級 | 62 項通過 |
+| Store 取消 | 27 項通過 |
+
+Windows ACL、8.3、subst、junction 拒絕、資料庫與來源值契約亦通過。實際封裝 EXE 在只保留 Windows System32 的 PATH、隔離開發者環境變數下通過 demo/check、GUI 啟動與正常關閉、可攜搬移及唯讀位置拒絕測試；沒有藉由測試安裝使用者執行相依套件。
+
+離線 Chromium 正常流程觀測到 0 個外部請求；另注入遠端 script、image、fetch、stylesheet、font 的測試均被 CSP 拒絕。人工資料圖片見 README：原生圖來自上述 Native CI 的 exact-release-smoke，HTML 圖來自上述 Source CI。PrintWindow 圖片不等同所有 GPU／桌面合成情境驗收。
+
+本輪核對、兩次失敗及修正紀錄見 [ALPHA7_REVIEW.md](ALPHA7_REVIEW.md)。保留 EXE 旁資料、無 AppData fallback、無 Python 執行需求、離線 HTML 無 CDN。未驗收真實 LINE 完整採集、實際 SMB／NAS、全 OS／瀏覽器與多螢幕矩陣；不自動修復既有共用資料夾權限。EXE 未簽章、CFG 未啟用，不宣稱無漏洞。
+
+alpha.1～6 已發布標籤與資產不修改。下方只保留 alpha.6 的歷史紀錄，不是 alpha.7 的證據。
 
 ## alpha.6 歷史狀態（不是本版驗收）
 

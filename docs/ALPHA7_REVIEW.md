@@ -39,3 +39,9 @@
 後續來源 `489bebfefbb9a4e8cd981f6bdd5da24f09c8cc3e` 已通過 Windows 合成橋接與 stdin bootstrap，確認測試作用域修正有效；但私人路徑 Windows 測試仍失敗，尚未走到 EXE 建置／實際啟動，需定位後重測，不能把後續跳過項目當成成功。
 
 來源核對顯示：新增本機路徑守門遇到 extended DOS 正例時，暴露 Zig 0.14.1 所帶 libc++ 將 `\\?\C:\…` 分段正規化後誤組成磁碟機相對路徑的相容性缺口。修補共同的正規化與父層走訪，保留遠端私人建立拒絕、雲端／連結及 handle 檢查；延伸同類呼叫點，避免只修單一測試入口。測試增加階段名稱、延伸路徑與根目錄、長路徑、8.3 別名及唯讀 UNC 根界線案例。原失敗日誌沒有細分階段，仍需新 Windows CI 確認整條路徑；日誌中的 `RUNNER~1` 不是已證明的根因。
+
+## 第三輪精確來源驗收
+
+程式來源 `04c97fecde52a12d653b8530b742ebe8b2b3a378` 的 [Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810537537) 與 [Native CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40810609603) 各三個工作成功。Windows 已執行 UTC 40 項、私人路徑 43 項及 Win32 合成 144 項；包含 extended DOS／根目錄／尾斜線／長路徑／別名、過期報告拒絕與四個歷史時間邊界。這次不是只做交叉編譯。完整分類與未測限制見 STATUS。
+
+實際封裝 EXE 的 exact-release-smoke 與人工離線 HTML 圖片已核對來源及目視；頂端與捲回頂端圖片雜湊相同，中段／底部未見互蓋。圖片來自此精確程式來源，而非後續文件提交；PrintWindow 會重繪，仍不推論所有桌面合成或真實使用環境均已通過。最終含文件的發布來源需再跑 CI，最終四個檔案與來源證明另於 Release 核對，不沿用本輪 ZIP 雜湊。
