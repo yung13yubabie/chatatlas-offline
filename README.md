@@ -2,9 +2,9 @@
 
 把收藏的對話變成可以探索的地圖。從一個人、一個關鍵字或一份檔案出發，找回相關內容，再回到原文閱讀。
 
-**0.3.1-alpha.9｜Windows x64 原生 LINE 資料庫預覽版（待發布驗證）**
+**0.3.1-alpha.9｜Windows x64 原生 LINE 資料庫預覽版**
 
-> alpha.9 正在進行發布驗證；下方 alpha.9 下載連結需等 Release 實際發布後才可用。目前已發布版本仍為 [alpha.8](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.8)，它尚未包含新的資料庫尋找介面。
+> alpha.9 已於 2026-10-29 發布為 Windows 預覽版。下方 EXE、ZIP 與校驗檔均來自通過驗收的同一輪 CI；alpha.8 與更早版本保持不變。
 
 [Windows 原生版 ZIP（建議）](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/ChatAtlas-0.3.1-alpha.9-Windows-x64-candidate.zip) · [單一 EXE](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/ChatAtlas-0.3.1-alpha.9-Windows-x64.exe) · [原始碼 ZIP](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/ChatAtlas-0.3.1-alpha.9-source.zip) · [SHA256SUMS.txt](https://github.com/yung13yubabie/chatatlas-offline/releases/download/v0.3.1-alpha.9/SHA256SUMS.txt) · [alpha.9 Release](https://github.com/yung13yubabie/chatatlas-offline/releases/tag/v0.3.1-alpha.9)
 
@@ -25,7 +25,7 @@ alpha.9 的發布驗證狀態見 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)�
 
 ## 下載後怎麼開
 
-1. alpha.9 發布後，下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
+1. 下載 **Windows 原生版 ZIP**，解壓整包到你有權寫入的一般本機私人 NTFS 資料夾；不要直接從網路共用或映射網路磁碟執行。
 2. 雙擊 `ChatAtlas.exe`。不需安裝 Python、Node.js，也不要求另裝 .NET。
 3. 要讀取自己的 LINE，先登入 Windows LINE，再按首頁「尋找並連接 LINE」，確認候選來源。
 4. 聊天室列出後，勾選要保存的內容，確認下方「收藏保存位置」，再按「開始整理與更新」。
@@ -62,7 +62,9 @@ alpha.9 的發布驗證狀態見 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)�
 
 ## alpha.9 驗證與發布
 
-本輪新增常見位置的資料庫候選清單、手動選擇預設位置，以及首頁操作與來源／保存位置指引。最終來源檢查、Windows UI、建置來源證明與實際封裝 EXE 測試仍待本次 CI 確認，不能沿用 alpha.8 的 EXE 或校驗值。進度見 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)。
+alpha.9 發行來源固定為 [`76817ba`](https://github.com/yung13yubabie/chatatlas-offline/commit/76817baab51b7630f3b0cf3313b06451cea9a740)。[Source CI](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40850573531) 三個工作與[發布流程](https://github.com/yung13yubabie/chatatlas-offline/actions/runs/40850573625) 四個工作全部成功，包含 Windows 的 40 項候選尋找、216 項 UI 檢查，以及實際封裝 EXE 的啟動與可攜測試。
+
+五個公開產物已讀回核對大小、SHA-256 與[建置來源證明](https://github.com/yung13yubabie/chatatlas-offline/attestations/61229084)；單一 EXE 與 ZIP 內位元組相同，來源 ZIP 逐檔符合發行提交。詳見 [alpha.9 核對紀錄](docs/ALPHA9_REVIEW.md)。後續文件提交不是 EXE 建置來源，這些人工資料驗證也不代表真實 LINE 帳號已通過實機驗收。
 
 ## alpha.8 已發布驗證
 
