@@ -78,7 +78,7 @@ assert.equal((cpp.match(/exportHtml\(s,\[&\]\{app.control->check\(\);\},&readerW
 assert(cpp.includes('if(!imported.warning.empty())message+="\\n"+imported.warning;'),'published import exposes reader cleanup warning');
 assert.equal((cpp.match(/return storeNotice\(store\)\+readerWarning\+/g)||[]).length,5,'GUI reader warnings reach success text in collect, demo, rebuild, backup and media fill');
 assert(main.includes('exportHtml(store,{},&warning)')&&main.includes('warning.data(),static_cast<DWORD>(warning.size())'),'EXE --demo reports successful-export cleanup warning on stderr');
-assert.equal((cpp.match(/readerWarning\+=openPublishedReader\(page,\*app.control\)/g)||[]).length,4,'all browser-opening export branches honor postpublication Stop');
+assert.equal((cpp.match(/readerWarning\+=openPublishedReader\(page,\*app.control(?:,openReader)?\)/g)||[]).length,4,'all browser-opening export branches honor postpublication Stop');
 assert(cpp.includes('if(!control.stopped.load()){open(page);return {};}')&&cpp.includes('已依停止要求略過自動開啟：'),'stopped published reader preserves location without launching browser');
 console.log('Native application flow contracts passed; interactive Windows/LINE validation remains separate.');
 
@@ -93,3 +93,6 @@ assert(chatReceive.includes('if(!c->preserveOptions)'),'automatic source publica
 assert(cpp.includes('postCaptureProgress);')&&cpp.includes('case MSG_PROGRESS:')&&cpp.includes('case MSG_FILE_REPORT:'),'capture connects typed per-file progress and saved-file result rows');
 assert(cpp.includes('captureReport(store,50,offset,state,query,tick,verifyContents)'),'saved-file inspection uses bounded, filtered, cancellable backend reporting');
 for(const id of ['ID_CHAT_TYPE','ID_CHAT_SOURCE','ID_CHAT_PAGE_SIZE','ID_SELECT_PAGE','ID_CLEAR_PAGE','ID_SELECT_FILTERED','ID_CLEAR_ALL'])assert(cpp.includes(id),'chat selection has filters, pages and explicit clear actions');
+
+const rebuild=cpp.slice(cpp.indexOf("if(id==ID_REBUILD)"),cpp.indexOf("if(id==ID_BACKUP)"));
+assert(rebuild.includes("exportHtml(s,[&]{app.control->check();},&readerWarning)")&&!rebuild.includes("&readerWarning,false"),"normal rebuild upgrades direct snapshots to full readers and never downgrades complete download parts");

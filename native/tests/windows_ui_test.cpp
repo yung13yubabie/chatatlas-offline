@@ -204,6 +204,25 @@ void completionPageUiChecks(HWND window,const fs::path& root){
  activatePage(0);fileReportClicked(false);auto files=finishUiTask(window);
  requireUi(!files.error&&app.page==1&&TabCtrl_GetCurSel(app.tabs)==1&&IsWindowVisible(app.fileList)&&ListView_GetItemCount(app.fileList)>0&&usableFocus(),"file inspection completion shows its saved-result workspace and usable focus");
 }
+J savedReaderManifest(const fs::path& page){auto html=readText(page);auto marker=html.find("id=\"manifest\"");auto begin=html.find('>',marker),end=html.find("</script>",begin);if(marker==std::string::npos||begin==std::string::npos||end==std::string::npos)throw std::runtime_error("saved reader has no manifest");return J::parse(html.substr(begin+1,end-begin-1));}
+class RebuildFixtureSource:public Source{
+ std::string bytes=std::string(8*1024*1024,'R'),hash=sha(bytes);
+ public:int downloads=0;RebuildFixtureSource(){account="synthetic-native-account";}
+ J chats()override{return J::array({{{"source_id","rebuild-room"},{"title","已保存檔案測試"},{"kind","group"}}});}
+ Batch read(const J&,const std::set<std::string>&,const std::string&,const std::string&,Control& control)override{control.check();Batch batch;batch.coverage="source_range";batch.items=J::array({{{"source_id","saved-file-message"},{"kind","message"},{"text","已保存的合成原檔"},{"sender_id","synthetic-sender"},{"sender_name","人工來源"},{"sent_at","2026-10-24T09:00:00+08:00"},{"ordinal",0}}});batch.attachments=J::array({{{"source_id","saved-original"},{"item_source_id","saved-file-message"},{"name","已保存的原始資料.bin"},{"kind","file"},{"expected_size",bytes.size()},{"expected_sha256",hash}}});return batch;}
+ fs::path download(const J&,const J&,const fs::path& destination,Control& control)override{control.check();++downloads;auto file=destination/L"payload.bin";atomicText(file,bytes);return file;}
+};
+void rebuildCommandUiChecks(HWND window){
+ auto root=app.config/L"RebuildSavedReader";RebuildFixtureSource source;fs::path original;Digest before;
+ {Store saved(root);Control control;collect(saved,source,source.chats(),control,{"message","thread"});exportHtml(saved,{},nullptr,false);auto blob=saved.db.rows("SELECT * FROM blobs")[0];original=within(root,blob["path"].get<std::string>());before=digest(original);}
+ auto direct=savedReaderManifest(root/L"index.html");requireUi(direct.value("direct_file_downloads",false)&&direct["downloads"].empty(),"rebuild command fixture begins with a direct local-file snapshot");auto directHash=digest(root/L"index.html").hash;
+ clearConnection();taskControls(false);activatePage(1);SetWindowTextW(app.folder,root.c_str());auto previousOpener=app.readerOpener;std::vector<fs::path> opened;app.readerOpener=[&](const fs::path& page){opened.push_back(page);};
+ requireUi(!app.source&&IsWindowVisible(GetDlgItem(window,ID_REBUILD))&&IsWindowEnabled(GetDlgItem(window,ID_REBUILD)),"saved-reader upgrade is available with no connected LINE source");SendMessageW(window,WM_COMMAND,ID_REBUILD,0);auto rebuilt=finishUiTask(window);auto full=savedReaderManifest(root/L"index.html");
+ requireUi(!rebuilt.error&&!rebuilt.stopped&&!full.value("direct_file_downloads",true)&&!full["downloads"].empty()&&digest(root/L"index.html").hash!=directHash,"real rebuild command atomically upgrades a direct snapshot to complete download data");requireUi(!app.source&&source.downloads==1&&digest(original).hash==before.hash&&digest(original).size==before.size&&opened==std::vector<fs::path>{root/L"index.html"},"reader rebuild reuses saved originals and opens the completed reader without reconnecting or downloading");
+ {Store saved(root);requireUi(saved.check().empty(),"upgraded reader has valid original bytes and complete offline download parts");}
+ auto completeHash=digest(root/L"index.html").hash;SendMessageW(window,WM_COMMAND,ID_REBUILD,0);SendMessageW(window,WM_COMMAND,ID_PAUSE,0);requireUi(app.busy&&app.control->paused&&IsWindowEnabled(GetDlgItem(window,ID_STOP)),"full reader regeneration exposes its real Pause and Stop controls");SendMessageW(window,WM_COMMAND,ID_STOP,0);auto cancelled=finishUiTask(window);
+ requireUi(cancelled.stopped&&!cancelled.error&&digest(root/L"index.html").hash==completeHash&&!savedReaderManifest(root/L"index.html").value("direct_file_downloads",true)&&!savedReaderManifest(root/L"index.html")["downloads"].empty(),"cancelling full regeneration preserves the previous complete reader instead of removing or downgrading it");requireUi(!app.source&&source.downloads==1&&digest(original).hash==before.hash,"cancelled reader regeneration preserves saved originals without fetching again");app.readerOpener=std::move(previousOpener);
+}
 
 }
 int main(){try{
@@ -304,7 +323,7 @@ int main(){try{
  requireUi(pickedDatabase&&app.source==nativeSource&&app.chats==connectedChats&&app.checked==connectedChecked&&app.report==freshReport&&!app.busy,"cancelling a new database selection preserves the current source and connection report");
  requireUi(getText(app.folder)==connectedFolder&&readText(prefs)==connectedPreferences,"cancelling a new database selection preserves collection location and preference bytes");
  activatePage(1);requireUi(IsWindowVisible(GetDlgItem(window,ID_MEDIA_IMPORT)),"original-file fill-in belongs to the collection page");taskControls(true);requireUi(!IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is disabled while collecting");taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is restored after a task");
- automaticCaptureUiChecks(window);savedResultUiChecks(window);completionPageUiChecks(window,app.config/L"StoppedCaptureResult");
+ automaticCaptureUiChecks(window);savedResultUiChecks(window);completionPageUiChecks(window,app.config/L"StoppedCaptureResult");rebuildCommandUiChecks(window);
  clearConnection();nativeSource.reset();taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_ALBUMS)),"disconnect restores other source content controls");
  auto originalConfig=app.config;requireUi(originalConfig.filename()==L"ChatAtlasData"&&originalConfig.parent_path()==executableDirectory(),"DPI changes preserve portable data location");
  DestroyWindow(window);CoUninitialize();std::cout<<checks<<" Win32 synthetic DPI checks passed; real multi-monitor and OS-version matrix remain separate.\n";return 0;
