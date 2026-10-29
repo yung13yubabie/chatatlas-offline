@@ -1,6 +1,6 @@
 CXX ?= g++
 CXXFLAGS = -std=c++20 -O0 -g -DJSON_DIAGNOSTICS=1 -Isrc -Iinclude -Ivendor -I../.toolchains/sqlite3mc-2.6.1
-SRC = platform database store archive zip demo bundle import line_cipher line_process line_media line_database line_obs line_locations
+SRC = platform database store archive zip demo bundle import line_cipher line_process line_media line_database line_obs line_locations line_batch text_export
 OBJ = $(addprefix build/,$(addsuffix .o,$(SRC))) build/line_cipher_engine.o
 all: build/core-test
 build/%.o: src/%.cpp $(wildcard src/*.hpp) | build/line_cipher_engine.o
@@ -124,3 +124,17 @@ build/line-locations-test: build/platform.o build/line_locations.o tests/line_lo
 test: test-line-locations
 test-line-locations: build/line-locations-test
 	@d=$$(mktemp -d) || exit 1; ./build/line-locations-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+build/line-batch-test: $(OBJ) tests/line_batch_test.cpp
+	$(CXX) $(CXXFLAGS) tests/line_batch_test.cpp $(OBJ) -ldl -pthread -o $@
+.PHONY: test-line-batch
+test: test-line-batch
+test-line-batch: build/line-batch-test
+	@d=$$(mktemp -d) || exit 1; ./build/line-batch-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status
+
+build/text-export-test: $(OBJ) tests/text_export_test.cpp
+	$(CXX) $(CXXFLAGS) tests/text_export_test.cpp $(OBJ) -ldl -pthread -o $@
+.PHONY: test-text-export
+test: test-text-export
+test-text-export: build/text-export-test
+	@d=$$(mktemp -d) || exit 1; ./build/text-export-test "$$d"; status=$$?; rm -rf "$$d"; exit $$status

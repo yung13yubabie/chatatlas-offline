@@ -11,57 +11,137 @@ void requireUi(bool condition,const char* message){++checks;if(!condition)throw 
 void fontHeight(HWND control,int expected){auto font=reinterpret_cast<HFONT>(SendMessageW(control,WM_GETFONT,0,0));LOGFONTW value{};requireUi(font&&GetObjectW(font,sizeof(value),&value)==sizeof(value),"control font exists");requireUi(value.lfHeight==-expected,"font follows DPI");}
 void databasePickerUiChecks(){
  auto root=privateDir(app.config/L"DatabasePickerFixture");
- const auto first=root/L"naver_line_first.edb",second=root/L"naver_line_second.edb",manual=root/L"manually_selected.edb";
+ const auto first=root/L"naver_line_first.edb",second=root/L"naver_line_second.edb",manual=root/L"人工手動選取.DB";
  for(const auto& path:{first,second,manual}){ExclusiveFile file(path);file.write("synthetic UI-only candidate; not a LINE database");file.sync();}
  const auto firstHash=digest(first).hash,secondHash=digest(second).hash;
+ auto buffer=[](std::initializer_list<std::wstring> words){std::vector<wchar_t> out;for(const auto& word:words){out.insert(out.end(),word.begin(),word.end());out.push_back(L'\0');}out.push_back(L'\0');return out;};
+ auto rejected=[&](const std::vector<wchar_t>& encoded){bool failed=false;try{parseLineDatabaseFileSelection(encoded);}catch(const Error&){failed=true;}requireUi(failed,"malformed or oversized native multi-file buffer is rejected");};
+ requireUi(parseLineDatabaseFileSelection(buffer({first.wstring()}))==std::vector<fs::path>{first},"single-file native selection preserves the complete path");
+ requireUi(parseLineDatabaseFileSelection(buffer({root.wstring(),first.filename().wstring(),manual.filename().wstring()}))==std::vector<fs::path>({first,manual}),"native multi-file buffer preserves every Unicode edb and db selection");
+ auto longDirectory=root;for(int depth=0;depth<6;++depth)longDirectory/=std::wstring(180,L'界');
+ requireUi(parseLineDatabaseFileSelection(buffer({longDirectory.wstring(),L"one.EDB",L"two.db"}))==std::vector<fs::path>({longDirectory/L"one.EDB",longDirectory/L"two.db"}),"long Unicode directory and mixed-case suffixes are parsed without truncation");
+ requireUi(parseLineDatabaseFileSelection(buffer({root.wstring(),L"same.edb",L"same.edb"})).size()==1,"duplicate paths in a native file response do not double-select a source");
+ rejected({L'C',L':',L'\\',L'x'});rejected({L'C',L':',L'\\',L'x',L'\0'});
+ rejected(buffer({root.wstring(),L"..\\outside.edb"}));rejected(buffer({root.wstring(),L"archive.sqlite3"}));
+ rejected(buffer({L"relative.edb"}));rejected(buffer({root.wstring(),first.wstring()}));
+ {
+  std::vector<fs::path> paths;for(size_t index=0;index<64;++index)paths.push_back(root/(L"source-"+std::to_wstring(index)+L".edb"));
+  requireUi(validateLineDatabaseSelection(paths)==paths,"all sixty-four explicit source paths survive selection validation");
+  paths.push_back(root/L"one-too-many.db");bool failed=false;try{validateLineDatabaseSelection(paths);}catch(const Error&){failed=true;}requireUi(failed,"more than sixty-four explicit sources are refused rather than truncated");
+  rejected(std::vector<wchar_t>(maxLineDatabaseSelectionChars+1,L'\0'));
+ }
  auto candidate=[](const fs::path& path){LineDatabaseCandidate value;value.path=path;value.size=46;return value;};
  auto makeLocations=[&](std::initializer_list<fs::path> paths){LineDatabaseLocations value;value.defaultDirectory=root;for(const auto& path:paths)value.candidates.push_back(candidate(path));return value;};
  {
   LineDatabasePicker state;state.locations=makeLocations({});auto dialog=createLineDatabasePicker(state);
   requireUi(dialog&&ListView_GetItemCount(state.list)==0&&state.selected.empty(),"empty database discovery has no invented selection");
   requireUi(!IsWindowEnabled(state.connect)&&!state.done,"empty database picker cannot connect automatically");
+  SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_ALL,0);requireUi(state.selected.empty(),"select all on an empty candidate list selects no files");
   SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(!state.done&&state.result.empty(),"enter without a database cannot accept an empty source");
   SendMessageW(dialog,WM_COMMAND,IDCANCEL,0);requireUi(state.done&&state.result.empty(),"empty picker cancels without returning a path");DestroyWindow(dialog);
  }
  {
   LineDatabasePicker state;state.locations=makeLocations({first});auto dialog=createLineDatabasePicker(state);
-  requireUi(state.selected==first&&getText(state.path)==first.wstring()&&IsWindowEnabled(state.connect),"single discovered database is displayed in full and ready for confirmation");
+  requireUi(state.selected==std::vector<fs::path>{first}&&getText(state.path)==first.wstring()&&IsWindowEnabled(state.connect),"single discovered database is checked and displayed in full for confirmation");
   requireUi(!state.done&&state.result.empty(),"single discovered database never connects without confirmation");
   requireUi((GetWindowLongPtrW(state.path,GWL_STYLE)&ES_READONLY)!=0,"source path is copyable display rather than an editable output folder");
-  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(state.done&&state.result==first,"explicit confirmation returns the sole displayed database");DestroyWindow(dialog);
+  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(state.done&&state.result==std::vector<fs::path>{first},"explicit confirmation returns the sole displayed database");DestroyWindow(dialog);
  }
  {
   LineDatabasePicker state;state.locations=makeLocations({first,second});auto dialog=createLineDatabasePicker(state);
-  requireUi(ListView_GetItemCount(state.list)==2&&state.selected.empty()&&!IsWindowEnabled(state.connect),"multiple accounts require an explicit selection");
+  requireUi(ListView_GetItemCount(state.list)==2&&state.selected.empty()&&!IsWindowEnabled(state.connect),"multiple candidates are initially unchecked");
+  requireUi((ListView_GetExtendedListViewStyle(state.list)&LVS_EX_CHECKBOXES)!=0&&(GetWindowLongPtrW(state.list,GWL_STYLE)&LVS_SINGLESEL)==0,"real source list supports checkboxes and Ctrl or Shift multi-row selection");
   ListView_SetItemState(state.list,1,LVIS_SELECTED|LVIS_FOCUSED,LVIS_SELECTED|LVIS_FOCUSED);
-  requireUi(state.selected==second&&getText(state.path)==second.wstring()&&IsWindowEnabled(state.connect),"selecting the second real list row updates the full source path");
-  const auto selectedText=getText(state.path),summary=getText(state.summary);bool browsed=false;
-  state.browse=[&](const fs::path& initial){browsed=initial==root;return fs::path{};};
-  SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
-  requireUi(browsed&&state.selected==second&&getText(state.path)==selectedText&&getText(state.summary)==summary&&!state.done,"manual file cancellation preserves the chosen account and visible instructions");
-  state.browse=[&](const fs::path&){return root/L"archive.sqlite3";};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
-  requireUi(state.selected==second&&getText(state.path)==selectedText&&state.result.empty()&&!state.done,"collection SQLite file cannot replace the LINE source selection");
-  state.browse=[&](const fs::path&){return manual;};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
-  requireUi(state.selected==manual&&getText(state.path)==manual.wstring()&&ListView_GetNextItem(state.list,-1,LVNI_SELECTED)==-1,"manual source replaces the visible selection without leaving a different account highlighted");
+  requireUi(state.selected.empty()&&getText(state.path)==second.wstring(),"highlighting a row previews its complete path without silently checking it");
+  ListView_SetCheckState(state.list,1,TRUE);requireUi(state.selected==std::vector<fs::path>{second}&&IsWindowEnabled(state.connect),"checking the second row selects that exact source");
+  SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_ALL,0);requireUi(state.selected==std::vector<fs::path>({first,second})&&getText(state.count).find(L"2")!=std::wstring::npos,"select all checks every source and updates the visible count");
+  SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_CLEAR,0);requireUi(state.selected.empty()&&!IsWindowEnabled(state.connect),"clear unchecks every source and disables empty connection");
+  ListView_SetItemState(state.list,0,LVIS_SELECTED,LVIS_SELECTED);SendMessageW(state.list,WM_KEYDOWN,VK_SPACE,0);
+  requireUi(state.selected==std::vector<fs::path>({first,second}),"space checks all highlighted Ctrl or Shift rows together");
+  SendMessageW(state.list,WM_KEYDOWN,VK_SPACE,0);requireUi(state.selected.empty(),"space can also clear all highlighted rows together");
+  ListView_SetCheckState(state.list,0,TRUE);ListView_SetCheckState(state.list,1,TRUE);
+  const auto selectedText=getText(state.path),summary=getText(state.summary);const auto selectedBefore=state.selected;bool browsed=false;
+  state.browse=[&](const fs::path& initial){browsed=initial==root;return std::vector<fs::path>{};};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
+  requireUi(browsed&&state.selected==selectedBefore&&getText(state.path)==selectedText&&getText(state.summary)==summary&&!state.done,"manual file cancellation preserves every checked source and visible instructions");
+  state.browse=[&](const fs::path&){return std::vector<fs::path>{manual,root/L"archive.sqlite3"};};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
+  requireUi(state.selected==selectedBefore&&getText(state.path)==selectedText&&state.result.empty()&&ListView_GetItemCount(state.list)==2&&!state.done,"a mixed invalid group cannot partially replace the earlier selection");
+  state.browse=[&](const fs::path&){return std::vector<fs::path>{manual,first};};SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_BROWSE,0);
+  requireUi(state.selected==std::vector<fs::path>({manual,first})&&getText(state.path)==manual.wstring()&&ListView_GetItemCount(state.list)==2,"manual multi-file selection replaces the list with every selected source");
   requireUi(!state.done&&state.result.empty()&&IsWindowEnabled(state.connect),"manual selection still requires explicit connection confirmation");
-  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(state.done&&state.result==manual,"confirming manual selection returns that exact source path");DestroyWindow(dialog);
+  SendMessageW(dialog,WM_COMMAND,IDOK,0);requireUi(state.done&&state.result==std::vector<fs::path>({manual,first}),"confirming multiple files returns every file rather than only the first one");DestroyWindow(dialog);
  }
  for(UINT message:{UINT(WM_COMMAND),UINT(WM_CLOSE)}){
-  LineDatabasePicker state;state.locations=makeLocations({first});auto dialog=createLineDatabasePicker(state);
+  LineDatabasePicker state;state.locations=makeLocations({first,second});auto dialog=createLineDatabasePicker(state);SendMessageW(dialog,WM_COMMAND,ID_DB_PICK_ALL,0);
   SendMessageW(dialog,message,message==WM_COMMAND?WPARAM(IDCANCEL):WPARAM(0),0);
-  requireUi(state.done&&state.result.empty(),"cancel button and window close both discard the pending database choice");DestroyWindow(dialog);
+  requireUi(state.done&&state.result.empty(),"cancel button and window close discard the pending batch even after all were checked");DestroyWindow(dialog);
  }
  const auto oldDpi=app.dpi;
  for(UINT dpi:{96u,192u}){
   app.dpi=dpi;rebuildFonts();LineDatabasePicker state;state.locations=makeLocations({first,second});auto dialog=createLineDatabasePicker(state);
   RECT client{};GetClientRect(dialog,&client);std::vector<RECT> controlBounds;
-  for(int id:{ID_DB_PICK_LIST,ID_DB_PICK_PATH,ID_DB_PICK_BROWSE,IDOK,IDCANCEL}){RECT bounds{};auto control=GetDlgItem(dialog,id);requireUi(control&&GetWindowRect(control,&bounds),"database picker has a real source or action control");MapWindowPoints(nullptr,dialog,reinterpret_cast<POINT*>(&bounds),2);requireUi(bounds.left>=0&&bounds.top>=0&&bounds.right<=client.right&&bounds.bottom<=client.bottom&&bounds.right>bounds.left&&bounds.bottom>bounds.top,"database selection and actions remain inside the work-area-sized window");controlBounds.push_back(bounds);}
-  for(size_t i=0;i<controlBounds.size();++i)for(size_t j=i+1;j<controlBounds.size();++j){RECT overlap{};requireUi(!IntersectRect(&overlap,&controlBounds[i],&controlBounds[j]),"database list, path and action buttons never overlap one another");}
+  for(int id:{ID_DB_PICK_LIST,ID_DB_PICK_PATH,ID_DB_PICK_BROWSE,ID_DB_PICK_ALL,ID_DB_PICK_CLEAR,ID_DB_PICK_COUNT,IDOK,IDCANCEL}){RECT bounds{};auto control=GetDlgItem(dialog,id);requireUi(control&&GetWindowRect(control,&bounds),"database picker has a real source or action control");MapWindowPoints(nullptr,dialog,reinterpret_cast<POINT*>(&bounds),2);requireUi(bounds.left>=0&&bounds.top>=0&&bounds.right<=client.right&&bounds.bottom<=client.bottom&&bounds.right>bounds.left&&bounds.bottom>bounds.top,"batch source selection and all actions remain inside the work-area-sized window");controlBounds.push_back(bounds);}
+  for(size_t i=0;i<controlBounds.size();++i)for(size_t j=i+1;j<controlBounds.size();++j){RECT overlap{};requireUi(!IntersectRect(&overlap,&controlBounds[i],&controlBounds[j]),"batch source list, path, count and action buttons never overlap one another");}
   fontHeight(state.path,MulDiv(16,dpi,96));DestroyWindow(dialog);
  }
- app.dpi=oldDpi;rebuildFonts();
- requireUi(digest(first).hash==firstHash&&digest(second).hash==secondHash,"showing and changing database candidates never modifies source bytes");
+ app.dpi=oldDpi;rebuildFonts();requireUi(digest(first).hash==firstHash&&digest(second).hash==secondHash,"showing and changing database candidates never modifies source bytes");
 }
+Result finishUiTask(HWND window){
+ const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(30);std::unique_ptr<Result> result;
+ while(!result){
+  if(std::chrono::steady_clock::now()>deadline){app.control->stopped=true;app.control->paused=false;if(app.worker.joinable())app.worker.join();app.busy=false;taskControls(false);throw std::runtime_error("synthetic automatic capture exceeded thirty seconds");}
+  MSG message{};
+  if(PeekMessageW(&message,nullptr,0,0,PM_REMOVE)){
+   if(message.hwnd==window&&message.message==MSG_DONE)result.reset(reinterpret_cast<Result*>(message.lParam));
+   else {TranslateMessage(&message);DispatchMessageW(&message);}
+  }else MsgWaitForMultipleObjects(0,nullptr,FALSE,20,QS_ALLINPUT);
+ }
+ if(app.worker.joinable())app.worker.join();app.busy=false;taskControls(false);SetWindowTextW(GetDlgItem(window,ID_PAUSE),L"暫停");setStatus(result->message);
+ return *result;
+}
+void automaticCaptureUiChecks(HWND window){
+ auto parent=privateDir(app.config/L"AutoCaptureParent"),destination=parent/L"ChatAtlas-Collection";
+ auto first=std::make_shared<DemoSource>(),second=std::make_shared<DemoSource>();second->account="synthetic-local-account";
+ auto source=std::make_shared<LineBatchSource>(std::vector<std::shared_ptr<Source>>{first,second});
+ const auto originalChats=source->chats();LineDatabaseLocations locations;
+ LineDatabaseCandidate one,two;one.path=app.config/L"auto-first.edb";two.path=app.config/L"auto-second.db";locations.candidates={one,two};
+ size_t connections=0;bool exactFiles=false;std::vector<fs::path> opened;
+ LineBatchConnector connect=[&](const std::vector<fs::path>& files,Control& control,std::function<void(std::string)>){
+  control.check();++connections;exactFiles=files==std::vector<fs::path>({one.path,two.path});LineBatchOpenResult result;result.source=source;result.entries={{one.path,"ready",""},{two.path,"ready",""}};return result;
+ };
+ SetWindowTextW(app.folder,parent.c_str());SYSTEMTIME captureStart{};captureStart.wYear=1990;captureStart.wMonth=1;captureStart.wDay=1;SendMessageW(GetDlgItem(window,ID_FROM),DTM_SETSYSTEMTIME,GDT_VALID,reinterpret_cast<LPARAM>(&captureStart));SendMessageW(GetDlgItem(window,ID_UNTIL),DTM_SETSYSTEMTIME,GDT_NONE,0);SendMessageW(GetDlgItem(window,ID_MESSAGE_MODE),CB_SETCURSEL,1,0);
+ const auto capturedSince=dateRange(ID_FROM,false);requireUi(!capturedSince.empty(),"automatic capture fixture starts with an explicit date and skip-text option");
+ autoCaptureClicked([&]{return locations;},connect,[&](const fs::path& page){opened.push_back(page);});
+ requireUi(app.busy&&!IsWindowEnabled(GetDlgItem(window,ID_AUTO_CAPTURE)),"automatic capture starts a real worker and disables repeat activation");
+ const auto completion=finishUiTask(window);
+ requireUi(!completion.error&&!app.busy&&IsWindowEnabled(GetDlgItem(window,ID_AUTO_CAPTURE)),"automatic capture completes without a modal test prompt and restores the action control");
+ requireUi(connections==1&&exactFiles,"automatic capture connects the complete discovered batch once");
+ requireUi(app.source==source&&app.chats==originalChats&&app.checked.size()==originalChats.size(),"automatic capture publishes every routed source chat and checks the processed batch");
+ requireUi(dateRange(ID_FROM,false)==capturedSince&&dateRange(ID_UNTIL,true).empty()&&SendMessageW(GetDlgItem(window,ID_MESSAGE_MODE),CB_GETCURSEL,0,0)==1,"automatic connection publication preserves the captured date range and skip-text selection");
+ requireUi(folderPath()==destination&&fs::is_regular_file(destination/L"archive.sqlite3")&&fs::is_regular_file(destination/L"index.html"),"one automatic click creates a dedicated collection and the offline reader");
+ requireUi(opened==std::vector<fs::path>{destination/L"index.html"},"automatic capture opens the published reader through the injected callback without launching a browser in the test");
+ {
+  Store saved(destination);auto chats=saved.db.rows("SELECT account,count(*) AS n FROM chats GROUP BY account ORDER BY account");
+  requireUi(chats.size()==2&&chats[0]["account"]=="synthetic-local-account"&&chats[1]["account"]=="synthetic-native-account"&&chats[0]["n"]==3&&chats[1]["n"]==3,"automatic capture stores original per-database accounts rather than a mixed batch namespace");
+  requireUi(saved.summary()["items"].get<int>()>0&&saved.check().empty(),"automatic capture actually saves consistent messages and attachment bytes");
+  const auto jobs=saved.history(100);requireUi(jobs.size()==originalChats.size(),"automatic batch records a completed capture job for every original chat");
+  for(const auto& job:jobs)requireUi(job["options"]["since"]==capturedSince&&job["options"]["until"]==""&&job["options"]["message_mode"]=="skip_text","automatic capture job options retain the requested date and skip-text mode after source publication");
+ }
+ std::vector<fs::path> generations;for(const auto& entry:fs::directory_iterator(destination/L"text-exports"))if(entry.is_directory())generations.push_back(entry.path());
+ requireUi(generations.size()==1,"automatic capture publishes exactly one completed text export generation");
+ auto manifest=J::parse(readText(generations[0]/L"export-complete.json"));requireUi(manifest.value("complete",false)&&manifest["chats"].size()==originalChats.size(),"automatic capture writes a complete TXT manifest for every collected chat");
+ for(const auto& chat:manifest["chats"]){auto txt=within(generations[0],chat["file"].get<std::string>());requireUi(digest(txt).hash==chat["sha256"].get<std::string>()&&readText(txt).find("聊藏對話紀錄")!=std::string::npos,"automatic capture publishes readable verified text instead of a success-only label");}
+ const auto previousSource=app.source;const auto previousChats=app.chats;const auto preferences=readText(app.config/L"preferences.local.json");
+ auto emptyParent=privateDir(app.config/L"AutoCaptureMissing");SetWindowTextW(app.folder,emptyParent.c_str());bool connectedEmpty=false;
+ autoCaptureClicked([]{return LineDatabaseLocations{};},[&](const std::vector<fs::path>&,Control&,std::function<void(std::string)>){connectedEmpty=true;return LineBatchOpenResult{};},[](const fs::path&){});
+ auto missing=finishUiTask(window);requireUi(missing.error&&!connectedEmpty&&!fs::exists(emptyParent/L"ChatAtlas-Collection"),"missing automatic candidates report failure before connecting or creating a collection");
+ requireUi(app.source==previousSource&&app.chats==previousChats&&readText(app.config/L"preferences.local.json")==preferences,"failed automatic discovery preserves the previous source and collection preferences");
+ auto cancelledParent=privateDir(app.config/L"AutoCaptureCancelled");SetWindowTextW(app.folder,cancelledParent.c_str());
+ autoCaptureClicked([&]{return locations;},[&](const std::vector<fs::path>&,Control& control,std::function<void(std::string)>){control.stopped=true;LineBatchOpenResult result;result.source=source;return result;},[](const fs::path&){});
+ auto cancelled=finishUiTask(window);requireUi(!fs::exists(cancelledParent/L"ChatAtlas-Collection")&&cancelled.message.find("已停止")!=std::string::npos&&app.source==previousSource,"stopping automatic capture before source publication creates no output or replacement connection");
+ bool busyDiscovered=false;app.busy=true;autoCaptureClicked([&]{busyDiscovered=true;return locations;},connect,[](const fs::path&){});app.busy=false;
+ requireUi(!busyDiscovered&&connections==1,"repeat automatic action while busy never starts another discovery or connector");
+}
+
 }
 int main(){try{
  initializeDpi();CoInitializeEx(nullptr,COINIT_APARTMENTTHREADED);
@@ -153,10 +233,11 @@ int main(){try{
  requireUi(dateRange(ID_FROM,false).empty()&&dateRange(ID_UNTIL,true).empty(),"new native database clears previous source date selections");
  app.checked={"synthetic-chat"};drawChats();auto lineParent=privateDir(app.config/L"NativeImportParent");SetWindowTextW(app.folder,lineParent.c_str());bool askedLine=false;collectClicked([&](const fs::path& proposed){askedLine=proposed==lineParent/L"ChatAtlas-Collection";return false;});requireUi(askedLine&&!app.busy&&!fs::exists(lineParent/L"ChatAtlas-Collection"),"native collection cancellation creates no archive or background worker");
  app.report=freshReport;auto connectedChats=app.chats;auto connectedChecked=app.checked;const auto connectedFolder=getText(app.folder);const auto connectedPreferences=readText(prefs);bool pickedDatabase=false;
- lineDatabaseClicked([&]{pickedDatabase=true;return fs::path{};});
+ lineDatabaseClicked([&]{pickedDatabase=true;return std::vector<fs::path>{};});
  requireUi(pickedDatabase&&app.source==nativeSource&&app.chats==connectedChats&&app.checked==connectedChecked&&app.report==freshReport&&!app.busy,"cancelling a new database selection preserves the current source and connection report");
  requireUi(getText(app.folder)==connectedFolder&&readText(prefs)==connectedPreferences,"cancelling a new database selection preserves collection location and preference bytes");
  activatePage(1);requireUi(IsWindowVisible(GetDlgItem(window,ID_MEDIA_IMPORT)),"original-file fill-in belongs to the collection page");taskControls(true);requireUi(!IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is disabled while collecting");taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_MEDIA_IMPORT)),"attachment fill-in is restored after a task");
+ automaticCaptureUiChecks(window);
  clearConnection();nativeSource.reset();taskControls(false);requireUi(IsWindowEnabled(GetDlgItem(window,ID_ALBUMS)),"disconnect restores other source content controls");
  auto originalConfig=app.config;requireUi(originalConfig.filename()==L"ChatAtlasData"&&originalConfig.parent_path()==executableDirectory(),"DPI changes preserve portable data location");
  DestroyWindow(window);CoUninitialize();std::cout<<checks<<" Win32 synthetic DPI checks passed; real multi-monitor and OS-version matrix remain separate.\n";return 0;

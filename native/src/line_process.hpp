@@ -6,14 +6,19 @@ namespace atlas {
 // Wipes a caller-owned passphrase after the encrypted reader has consumed it.
 void eraseLineKey(std::string&) noexcept;
 
-// Credentials observed in the same signed LINE process whose key opens the
-// selected database. None of these values may enter JSON, settings or logs.
+class LineKeyCandidates;
+class LineSession;
+using LineDatabaseKeyVisitor=std::function<bool(LineKeyCandidates&,std::shared_ptr<LineSession>,Tick)>;
+
+// Credentials observed in one signed LINE process. Associate them with a
+// database only after a key from that same process opens it. None of these
+// values may enter JSON, settings or logs.
 class LineSession final {
  struct Impl;std::unique_ptr<Impl> impl;
  explicit LineSession(const std::string&,const std::string&,const std::string&);
  friend class LineSessionCandidates;
- friend std::string findLineDatabaseKey(const fs::path&,Control&,
-  const std::function<bool(const std::string&)>&,std::function<void(std::string)>,std::shared_ptr<LineSession>*);
+ friend void visitLineDatabaseKeys(Control&,const LineDatabaseKeyVisitor&,
+  std::function<void(std::string)>,bool);
  public:
  ~LineSession();
  LineSession(const LineSession&)=delete;LineSession& operator=(const LineSession&)=delete;
@@ -47,6 +52,15 @@ class LineKeyCandidates final {
  size_t size() const;
  std::string findMatch(Control&,const std::function<bool(const std::string&)>&,Tick={});
 };
+
+// Scan each verified, current-user/session LINE process once. The visitor receives
+// only that process's candidate pool and observed session; credentials from other
+// processes are never combined. Return true to stop after all requested sources
+// have matched. A normal return does not mean any database was readable.
+// The borrowed pool and deadline check are valid only during this callback and
+// must not be retained. observeSession=false is for callers without media access.
+void visitLineDatabaseKeys(Control&,const LineDatabaseKeyVisitor&,
+ std::function<void(std::string)> progress={},bool observeSession=true);
 
 // Read-only, current-user Windows LINE processes with a verified signed publisher.
 // The probe must validate the candidate against the explicitly selected database.

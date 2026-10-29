@@ -222,7 +222,7 @@ jobs:
           const notes=path.join(temporary,'release-notes.md');
           fs.writeFileSync(notes,[
             '原生 Windows x64 預覽版：直接唯讀連接選定的 LINE 本機資料庫，並嘗試透過 LINE 附件 API 取得圖片、影片與檔案。',
-            '開啟程式後按「尋找並連接 LINE」，會列出常見位置的 .edb、顯示完整路徑，亦可手動選擇。首頁的「收藏保存位置」是整理結果的保存位置。',
+            '開啟並登入 Windows LINE 後，在聊藏按「自動抓取」，會核對常見位置的可讀對話來源、自動整理聊天室並嘗試下載附件，另匯出 TXT 與離線閱讀頁。也可按「批次選擇資料庫」一次勾選多個 .edb／.db，再勾選聊天室。各資料庫來源分開保存，不以可解密推定目前登入帳號。',
             '',
             '建議下載 `'+names[1]+'`，解壓整包後開啟 `ChatAtlas.exe`。另提供單一 EXE；兩者的執行檔位元組相同，且均內含第三方授權告示。不需要安裝 Python、Node.js、MCP 或另裝解密套件。',
             '',

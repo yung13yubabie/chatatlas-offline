@@ -62,7 +62,7 @@ const opened=cpp.slice(cpp.indexOf('OpenedArchive openRememberedArchive'),cpp.in
 assert(opened.indexOf('std::make_unique<Store>')<opened.indexOf('remember(root)'),'only successfully opened collections become saved preference');
 assert(cpp.includes('store.history(100,offset)')&&cpp.includes('deleteHistoryAndRefresh(*store,jobId'),'history uses bounded backend APIs');
 assert(cpp.includes('不會刪除對話、附件或附件沿用資料')&&cpp.includes('row.value("status","")=="running"'),'history deletion disclosure and running guard exist');
-assert(cpp.includes('row.value("account","")!=app.source->account')&&cpp.includes('未變更整理設定'),'history cannot apply another account');
+assert(cpp.includes('app.source->accountFor(chat)==row.value("account","")')&&cpp.includes('auto stored=app.source->storageChat(chat)')&&cpp.includes('未變更整理設定'),'history cannot apply another account');
 assert(cpp.includes('"skip_text"')&&cpp.includes('仍讀取附件所需的識別與關聯'),'skip text has explicit metadata disclosure');
 assert(cpp.includes('if(!confirmDelete())return;'),'history deletion can be cancelled before any Store opening');
 assert(cpp.includes('archiveSchemaVersion(root)!=1')&&cpp.includes('if(!confirm())return std::nullopt;'),'legacy archive upgrade requires consent');

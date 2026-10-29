@@ -62,6 +62,33 @@ int main(){try{
   Control cancelled;rejects([&]{candidates.findMatch(cancelled,[&](const std::string&){cancelled.stopped=true;return true;});});
   bool scanned=false;rejects([&]{findLineDatabaseKey(path8("missing-synthetic-database.edb"),stopped,[&](const std::string&){scanned=true;return true;});});require(!scanned,"already cancelled native scan reads no process or database");
  }
+ {
+  // Batch connection reuses the one process's pool for different databases;
+  // a failed or successful probe must not consume another database's key.
+  LineKeyCandidates process;append(process,"!"+mixed+"!"+second+"!");
+  auto first=process.findMatch(control,[&](const std::string& key){return key==mixed;});
+  auto failed=process.findMatch(control,[](const std::string&){return false;});
+  auto later=process.findMatch(control,[&](const std::string& key){return key==second;});
+  require(first==mixed&&failed.empty()&&later==second,"one scanned pool supports matching multiple explicit database probes");
+  require(process.size()==2,"batch matching does not consume or append process candidates");
+  eraseLineKey(first);eraseLineKey(later);
+  LineKeyCandidates otherProcess;append(otherProcess,mixed);
+  auto absent=otherProcess.findMatch(control,[&](const std::string& key){return key==second;});
+  require(absent.empty()&&otherProcess.size()==1,"another process cannot inherit a previous process's database key");
+  rejects([&]{process.findMatch(control,[](const std::string&)->bool{throw CapabilityError("synthetic probe failure");});});
+  auto retry=process.findMatch(control,[&](const std::string& key){return key==second;});
+  require(retry==second,"failed database probe does not corrupt the reusable process pool");eraseLineKey(retry);
+  bool laterProbed=false;Control cancelled;cancelled.stopped=true;
+  rejects([&]{process.findMatch(cancelled,[&](const std::string&){laterProbed=true;return true;});});
+  require(!laterProbed,"batch cancellation prevents the next database's key probe");
+ }
+ {
+  // These preconditions run before any native process access, on every OS.
+  rejects([&]{visitLineDatabaseKeys(control,{});});
+  Control stopped;stopped.stopped=true;bool visited=false,reported=false;
+  rejects([&]{visitLineDatabaseKeys(stopped,[&](LineKeyCandidates&,std::shared_ptr<LineSession>,Tick){visited=true;return false;},[&](std::string){reported=true;});});
+  require(!visited&&!reported,"an already cancelled batch scan cannot read processes or call its visitor");
+ }
  const std::string auth="synthetic-account-session-token",obs="synthetic-observed-obs-token",application="DESKTOPWIN\t1.2.3\tWINDOWS\t10";
  const auto headers="GET /r/talk/m/synthetic HTTP/1.1\r\nHost: obs.line-apps.com\r\nX-Line-Access: "+obs+"\r\nX-Line-Application: "+application+"\r\n\r\n";
  const auto account=std::string("{\"authToken\":\"")+auth+"\",\"X-Line-Application\":\"DESKTOPWIN\\t1.2.3\\tWINDOWS\\t10\"}";

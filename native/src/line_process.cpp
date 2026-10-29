@@ -317,10 +317,8 @@ bool readable(const MEMORY_BASIC_INFORMATION& info){
 }
 #endif
 
-std::string findLineDatabaseKey(const fs::path& database,Control& control,const std::function<bool(const std::string&)>& probe,std::function<void(std::string)> progress,std::shared_ptr<LineSession>* session){
- if(session)session->reset();
- control.check();if(!probe)throw Error("LINE 資料庫核對方式不正確。");
- noLinks(database);if(!fs::is_regular_file(database))throw CapabilityError("請先選擇可讀取的 LINE 本機資料庫。");
+void visitLineDatabaseKeys(Control& control,const LineDatabaseKeyVisitor& visitor,std::function<void(std::string)> progress,bool observeSession){
+ control.check();if(!visitor)throw Error("LINE 資料庫核對方式不正確。");
 #ifdef _WIN32
  const auto deadline=std::chrono::steady_clock::now()+std::chrono::minutes(3);
  const auto budget=[&]{control.check();if(std::chrono::steady_clock::now()>deadline)throw CapabilityError("LINE 本機解密資訊讀取已達時間上限，請保留一個已登入的 LINE 視窗後重試。");};
@@ -341,7 +339,7 @@ std::string findLineDatabaseKey(const fs::path& database,Control& control,const 
   Handle executable(CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr));
   if(!executable||!trustedPublisher(path,executable.value))continue;
   anyTrusted=true;if(++verifiedProcesses>8)throw CapabilityError("同時開啟的 LINE 程序過多，請保留要讀取的 LINE 後重試。");
-  LineKeyCandidates candidates;LineSessionCandidates contexts;
+  LineKeyCandidates candidates;LineSessionCandidates contexts;bool processReadable=false;
   if(progress)progress("正在讀取 LINE 本機解密資訊；金鑰只會留在記憶體中…");
   SYSTEM_INFO system{};GetNativeSystemInfo(&system);uintptr_t address=reinterpret_cast<uintptr_t>(system.lpMinimumApplicationAddress),maximum=reinterpret_cast<uintptr_t>(system.lpMaximumApplicationAddress);
   SecretBuffer buffer(1024*1024);
@@ -357,28 +355,47 @@ std::string findLineDatabaseKey(const fs::path& database,Control& control,const 
      inspected+=requested;SIZE_T received=0;
      ReadProcessMemory(process.value,reinterpret_cast<LPCVOID>(offset),buffer.bytes.data(),requested,&received);
      if(received>requested)throw CapabilityError("LINE 記憶體讀取回應不相容，已停止。");
-     if(received){anyReadable=true;const bool final=received<requested||offset+requested==next;candidates.append(buffer.bytes.data(),received,final);if(session)contexts.append(buffer.bytes.data(),received,final);}
-     else{candidates.append(nullptr,0,true);if(session)contexts.append(nullptr,0,true);}
+     if(received){anyReadable=processReadable=true;const bool final=received<requested||offset+requested==next;candidates.append(buffer.bytes.data(),received,final);if(observeSession)contexts.append(buffer.bytes.data(),received,final);}
+     else{candidates.append(nullptr,0,true);if(observeSession)contexts.append(nullptr,0,true);}
      eraseBytes(buffer.bytes.data(),requested);offset+=requested;
     }
     candidates.append(nullptr,0,true);
-    if(session)contexts.append(nullptr,0,true);
+    if(observeSession)contexts.append(nullptr,0,true);
    }
    address=next;
   }
-  budget();if(progress)progress("正在以選取的 LINE 資料庫核對本機解密資訊…");
-  auto result=candidates.findMatch(control,probe,budget);SecretString cleanup{result};
-  if(!result.empty()){
-   if(session){auto observed=contexts.preferred();if(observed){observed->impl->binding=std::make_shared<SessionBinding>();observed->impl->binding->process=process.value;process.value=nullptr;}*session=std::move(observed);}
-   return std::string(result);
+  budget();DWORD exit=0;
+  if(!processReadable||!GetExitCodeProcess(process.value,&exit)||exit!=STILL_ACTIVE)continue;
+  if(progress)progress("正在以選取的 LINE 資料庫核對本機解密資訊…");
+  std::shared_ptr<LineSession> observed=observeSession?contexts.preferred():nullptr;
+  if(observed){
+   observed->impl->binding=std::make_shared<SessionBinding>();
+   observed->impl->binding->process=process.value;process.value=nullptr;
   }
+  const bool finished=visitor(candidates,std::move(observed),budget);
+  budget();if(finished)return;
  }while(Process32NextW(snapshot.value,&entry));
  if(!anyLine)throw CapabilityError("找不到目前工作階段的 LINE.exe。請先開啟並登入 LINE，再選擇本機資料庫。");
  if(!anyTrusted)throw CapabilityError("無法以目前帳號唯讀開啟並核對 LINE 的簽章發行者，未讀取金鑰；不會自動提升權限。");
  if(!anyReadable)throw CapabilityError("目前無法讀取 LINE 的本機解密資訊；請確認 LINE 已登入且屬於目前 Windows 帳號。");
- throw CapabilityError("本機解密資訊無法開啟選取的 LINE 資料庫，請確認帳號、資料庫與 LINE 版本相容。");
+ return;
 #else
- (void)progress;throw CapabilityError("原生 LINE 金鑰讀取僅支援 Windows，請在已登入 LINE 的 Windows 電腦操作。");
+ (void)progress;(void)observeSession;throw CapabilityError("原生 LINE 金鑰讀取僅支援 Windows，請在已登入 LINE 的 Windows 電腦操作。");
 #endif
+}
+
+std::string findLineDatabaseKey(const fs::path& database,Control& control,const std::function<bool(const std::string&)>& probe,std::function<void(std::string)> progress,std::shared_ptr<LineSession>* session){
+ if(session)session->reset();
+ control.check();if(!probe)throw Error("LINE 資料庫核對方式不正確。");
+ noLinks(database);if(!fs::is_regular_file(database))throw CapabilityError("請先選擇可讀取的 LINE 本機資料庫。");
+ std::string result;SecretString cleanup{result};std::shared_ptr<LineSession> matchedSession;
+ visitLineDatabaseKeys(control,[&](LineKeyCandidates& candidates,std::shared_ptr<LineSession> observed,Tick budget){
+  auto match=candidates.findMatch(control,probe,std::move(budget));SecretString clearMatch{match};
+  if(match.empty())return false;
+  result=std::move(match);matchedSession=std::move(observed);return true;
+ },std::move(progress),session!=nullptr);
+ if(result.empty())throw CapabilityError("本機解密資訊無法開啟選取的 LINE 資料庫，請確認帳號、資料庫與 LINE 版本相容。");
+ if(session)*session=std::move(matchedSession);
+ return std::string(result);
 }
 }

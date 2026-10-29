@@ -39,7 +39,7 @@ const initialInputs=inputs.map(p=>({path:path.relative(repo,p).split(path.sep).j
 run(zig,['rc','/i','src','/i',path.join(compiler.lib_dir,'libc/include/any-windows-any'),'/fo','out/app.res','src/app.rc']);
 const dependency=await ensureLineCipher();
 run(zig,['cc','-target','x86_64-windows-gnu','-std=c11','-O1',...lineCipherFlags,'-c',dependency.source,'-o','out/line-cipher.o']);
-const sources=['app','platform','database','store','archive','zip','demo','bundle','windows_source','import','line_cipher','line_process','line_database','line_media','line_obs','line_locations'].map(name=>'src/'+name+'.cpp');
+const sources=['app','platform','database','store','archive','zip','demo','bundle','windows_source','import','line_cipher','line_process','line_database','line_media','line_obs','line_locations','line_batch','text_export'].map(name=>'src/'+name+'.cpp');
 run(zig,['c++','-target','x86_64-windows-gnu','-std=c++20','-O1','-g0','-fstack-protector-strong','-DUNICODE','-D_UNICODE','-municode','-Wl,--subsystem,windows','-Isrc','-Iinclude','-Ivendor','-I'+dependency.directory,...sources,'out/line-cipher.o','out/app.res','-lcomctl32','-lole32','-lshell32','-luuid','-lcomdlg32','-lgdi32','-ladvapi32','-lwintrust','-lcrypt32','-lwinhttp','-lbcrypt','-o','out/ChatAtlas.exe']);
 
 function regularFiles(directory) {
